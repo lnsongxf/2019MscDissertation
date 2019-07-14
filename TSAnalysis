@@ -23,7 +23,7 @@ close_px = close_px_all[['AAPL', 'MSFT', 'XOM']]
 
 close_px = close_px.resample('B', fill_method='ffill').ffill()#only select working days
 
-close_px.info()
+#close_px.info()
 
 #several plotting sentences
 
@@ -31,7 +31,7 @@ close_px.info()
 #close_px.ix['2009'].plot() # 2009's data for3 firms 
 #close_px['AAPL'].ix['01-2011':'03-2011'].plot()# Apple's data from2011.01-2011.03
 
-'''
+
 #transfer the data into monthly data and plot
 appl_q = close_px['AAPL'].resample('Q-DEC', fill_method='ffill').ffill()
 appl_q.ix['2009':].plot() #平滑性有了很大的上涨
@@ -39,8 +39,8 @@ appl_q.ix['2009':].plot() #平滑性有了很大的上涨
 #rolling windows
 close_px.AAPL.plot()
 close_px.AAPL.rolling(250).mean().plot()#250 means: the window only select the fore 250days' mean 
-'''
-#指数加权平滑法
+
+#Exponentially weighted windows ewm
 fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True,
                          figsize=(12, 7))
 
@@ -49,9 +49,41 @@ ma60 = aapl_px.rolling(60, min_periods=50).mean()
 ewma60 =aapl_px.ewm(span=60).mean()
 print(ewma60)
 
+#Graph3
 aapl_px.plot(style='k-', ax=axes[0])
 ma60.plot(style='k--', ax=axes[0])
 aapl_px.plot(style='k-', ax=axes[1])
 ewma60.plot(style='k--', ax=axes[1])
 axes[0].set_title('Simple MA')
 axes[1].set_title('Exponentially-weighted MA')
+
+
+
+#calculate correlation between Apple and SP500
+close_px
+spx_px = close_px_all['SPX']
+
+spx_rets = spx_px / spx_px.shift(1) - 1
+returns = close_px.pct_change() # return of SP500
+
+Appl=returns.AAPL #return of Apple
+
+#Graph2 plot the corr between Apple and SP500
+corr = Appl.rolling(125, min_periods=100).corr(spx_rets)
+corr.plot()
+
+#Graph1 plot all the corr 
+corr1=returns.rolling(125, min_periods=100).corr(spx_rets)
+corr1.plot()
+
+
+
+#stationary tests
+
+
+
+
+
+
+
+
