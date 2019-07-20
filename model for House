@@ -69,14 +69,18 @@ Dhos_train.columns = [u'DHOUST']
 #-------------------------------------------------
 
 #white noise test
+'''
 from statsmodels.stats.diagnostic import acorr_ljungbox
 print(acorr_ljungbox(hos_train, lags=1))
+'''
 #-------------------------------------------------
 
-#ARIMA
+#ARMA
+'''
 from statsmodels.tsa.arima_model import ARIMA
 
 #decide p,q
+
 pmax = 15 #suppose p,q < length/10
 qmax = 10 #suppose p,q < length/10
 bic_matrix = [] #bic matrix
@@ -93,3 +97,29 @@ bic_matrix = pd.DataFrame(bic_matrix) #find the minimum
 
 p,q = bic_matrix.stack().idxmin() #先用stack展平，然后用idxmin找出最小值位置。
 print(u'BIC最小的p值和q值为：%s、%s' %(p,q)) 
+
+
+model = ARIMA(hos_train,(p,0,q)).fit() #ARIMA(0, 1, 1) model
+print('modelsummary!!') #model report
+print(model.summary())
+print(model.forecast(1))
+'''
+#-------------------------------------------------
+
+#VAR
+'''
+from statsmodels.tsa.vector_ar.var_model import VAR
+info_var = info_all[['HOUST','HOUSTNE']]
+
+#optlag = VAR(info_var).select_order(trend='c')
+model = VAR(info_var).fit(maxlags=10,method='ols', ic='aic', trend='c')
+print(model.summary())
+print(model.forecast(model.y,1))
+'''
+#-------------------------------------------------
+
+#HWES
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+model = ExponentialSmoothing(hos_train).fit()
+forec = model.predict(len(hos_train), len(hos_train))
+print(forec)
