@@ -9,15 +9,14 @@ Created on Sat Jul 20 11:57:37 2019
 from __future__ import division
 import pandas as pd
 from pandas import Series, DataFrame
-
-from numpy.random import randn
 import numpy as np
 import matplotlib.pyplot as plt
 from statsmodels.tsa.vector_ar.var_model import VAR
 from statsmodels.tsa.stattools import adfuller as ADF
 from statsmodels.tsa.stattools import kpss as KPSS
 import math
-
+from dateutil.parser import parse
+from pandas.tseries.offsets import Day,MonthEnd, MonthBegin
 #===============================================================
 #basic information and graph
 #===============================================================
@@ -217,13 +216,23 @@ def var(data,columny,columnx): #data here should be a complete data
 #HWES
 #===============================================================
 
-def HWES(data):
+def hwes(data):
     from statsmodels.tsa.holtwinters import ExponentialSmoothing
     model = ExponentialSmoothing(hos_train).fit()
+    
     forec = model.predict(len(hos_train), len(hos_train))
+    print('============================')
+    print('============================')
+    print('This is the forecast result')
     print(forec)
+    print('============================')
+    print('============================')
+    print()
     return;
 
+#===============================================================
+#===============================================================
+    #main 
 #===============================================================
 #===============================================================
     #basicinfo(data,t1,t2)
@@ -235,15 +244,19 @@ def HWES(data):
     #optilag(data,p,q) #p,q are the max length
     #model(data,p,d,q) #ARIMA(p,d,q) 
     #var(data,columny,columnx): #data here should be a complete data
-    #HWES(data)
-#===============================================================
-#===============================================================
+    #hwes(data)
 #===============================================================
 #===============================================================
 
 info_all = pd.read_csv('2019-06.csv', parse_dates=True, index_col=0)
+d=pd.read_csv('2019-06.csv') # get time sequence
+df=d['sasdate'] 
+df= pd.to_datetime(df)
 info_hos = info_all[['HOUST']]
-hos_train = info_hos['1959-01-01':'2001-01-01']
+#hos_train = info_hos['1959-01-01':'2001-01-01']
+
+# 1959-01-01 is df[0]
+# 2001-01-01 is df[504]
 
 #basicinfo(hos_train,'1959-01-01','2001-01-01')
 #unitroot(hos_train,u'HOUST')
@@ -252,6 +265,24 @@ hos_train = info_hos['1959-01-01':'2001-01-01']
 #optilag(hos_train,3,3)
 #model(hos_train,2,0,2)
 #var(info_all,'HOUST','HOUSTS')
+#hwes(hos_train)
+
+#parse('2011-01-03')
+
+i=504
+j=0
+
+while i<550 :
+    hos_train = info_hos[df[j]:df[i]]
+    #print(hos_train)
+    hwes(hos_train)
+    i = i+1
+    j=j+1
+    continue;
+
+
+
+
 
 
 
