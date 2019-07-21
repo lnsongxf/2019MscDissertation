@@ -16,110 +16,242 @@ import matplotlib.pyplot as plt
 from statsmodels.tsa.vector_ar.var_model import VAR
 from statsmodels.tsa.stattools import adfuller as ADF
 from statsmodels.tsa.stattools import kpss as KPSS
+import math
+
+#===============================================================
+#basic information and graph
+#===============================================================
+def basicinfo(data,t1,t2):
+    
+    print(data.info())
+#graph 1&2
+    data.ix[t1:t2].plot()
+#info_hos.rolling(10).mean().plot()
+    return;
+
+
+#===============================================================
+#Exponentially weighted windows and normal MA graph
+#===============================================================
+#graph 3
+def ewm(data): # data is the train data
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True,figsize=(12, 7))
+    ma = data.rolling(20, min_periods=10).mean()
+    ewma =data.ewm(span=20).mean()
+
+
+    data.plot(style='k-', ax=axes[0])
+    ma.plot(style='k--', ax=axes[0])
+    data.plot(style='k-', ax=axes[1])
+    ewma.plot(style='k--', ax=axes[1])
+    axes[0].set_title('Simple MA')
+    axes[1].set_title('Exponentially-weighted MA')
+    return;
+    
+    
+
+#===============================================================
+#acf and pacf graph
+#===============================================================
+def acf(data):
+#acf & pacf 
+#graph 4&5
+    from statsmodels.graphics.tsaplots import plot_acf
+    plot_acf(data).show()
+    from statsmodels.graphics.tsaplots import plot_pacf
+    plot_pacf(data).show() #pacf
+
+#===============================================================
+#exam the stationarity 
+#===============================================================
+def unitroot(data,column): # column should be sth like u'DHOUST' 
+    print('============================')
+    print('This is result for ADF test')
+    print('============================')
+    print(ADF(data[column]))
+    print('============================')
+    print()
+    print('============================')
+    print('This is result for KPSS test')
+    print('============================')
+    print( KPSS(data[column]))
+    print('============================')
+    return;
+
+#===============================================================
+#take difference 
+#===============================================================
+def dif(data,column): # column is the new name,should be sth like u'DHOUST'
+    Ddata= data.diff().dropna()
+    Ddata.columns = [column]
+    #graph6
+    #Ddata.plot()  
+    return Ddata;
+    #print( ADF(Dhos_train[u'DHOUST']))
+    #print( KPSS(Dhos_train[u'DHOUST']))
+
+#===============================================================
+#white noise test
+#===============================================================
+def whit(data,lagnum):
+    from statsmodels.stats.diagnostic import acorr_ljungbox
+    print(acorr_ljungbox(data, lags=lagnum))
+    return;
+
+#===============================================================
+#ARMA model
+#===============================================================
+#decide p,q
+def optilag(data,p,q): #p,q are the max length
+    from statsmodels.tsa.arima_model import ARIMA
+    pmax = p # for 
+    qmax = q #suppose p,q < length/10
+    bic_matrix = [] #bic matrix
+    for p in range(pmax+1):
+        tmp = []
+        for q in range(qmax+1):
+            try: 
+                tmp.append(ARIMA(data, (p,0,q)).fit().bic)
+            except:
+                tmp.append(None)
+            bic_matrix.append(tmp)
+            '''
+            lag check
+            print('============================')
+            print('============================')
+            
+            print('this is tmp:')
+            print(tmp)
+            print(u'p值和q值为：%s、%s' %(p,q))
+            print('============================')
+            print('============================')
+            '''
+    bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
+    print('============================')
+    print('============================')
+    print(bic_matrix)
+    p,q = bic_matrix.stack().idxmin()
+    print('============================')
+    print('============================')
+    print()
+    print('============================')
+    print('============================')
+    p= math.ceil(p/4)
+    print(u'BIC最小的p值和q值为：%s、%s' %(p,q)) 
+    print('============================')
+    print('============================')  
+    return;
+#-------------------------------------------------    
+def model(data,p,d,q):#ARIMA(p,d,q) 
+    from statsmodels.tsa.arima_model import ARIMA
+    model = ARIMA(data,(p,d,q)).fit() 
+    print('============================')
+    print('modelsummary!!') #model report
+    print('============================')
+    print(model.summary())
+    print(model.forecast(1))
+    return;
+#-------------------------------------------------
+'''
+#decide p,q
+class ARIMA:
+    from statsmodels.tsa.arima_model import ARIMA
+    def __init__(self,data,p,d,q):
+        self.data=data;
+        self.p=p;
+        self.d=d;
+        self.q=q;
+    
+    def optilag(self): #p,q are the max length
+        pmax = self.p 
+        qmax = self.q 
+
+        bic_matrix = [] #bic matrix
+        for p in range(pmax+1):
+            tmp = []
+            for q in range(qmax+1):
+                try: 
+                    tmp.append(ARIMA(self.data, (p,0,q)).fit().bic)
+                except:
+                    tmp.append(None)
+                bic_matrix.append(tmp)
+            
+        bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
+        p,q = bic_matrix.stack().idxmin()
+        
+        print('============================')
+        print('============================')
+        print(u'the minimum p and q is：%s、%s' %(p,q)) 
+        print('============================')
+        print('============================')  
+        self.p=p;
+        self.q=q;
+#-------------------------------------------------    
+        def model():#ARIMA(p,d,q) 
+            model = ARIMA(self.data,(self.p,self.d,self.q)).fit() 
+            print('============================')
+            print('modelsummary!!') #model report
+            print('============================')
+            print(model.summary())
+            print(model.forecast(1))
+            return;
+#-------------------------------------------------
+'''
+
+
+#===============================================================
+#VAR
+#===============================================================
+
+def var(data,columny,columnx): #data here should be a complete data
+    info_var = data[[columny,columnx]]
+    optlag = VAR(info_var).select_order(trend='c')
+    print(optlag)
+    model = VAR(info_var).fit(maxlags=10,method='ols', ic='aic', trend='c')
+    print(model.summary())
+    print(model.forecast(model.y,1))
+
+    return;
+
+#===============================================================
+#HWES
+#===============================================================
+
+def HWES(data):
+    from statsmodels.tsa.holtwinters import ExponentialSmoothing
+    model = ExponentialSmoothing(hos_train).fit()
+    forec = model.predict(len(hos_train), len(hos_train))
+    print(forec)
+    return;
+
+#===============================================================
+#===============================================================
+    #basicinfo(data,t1,t2)
+    #ewm(data): # data is the train data
+    #acf(data)
+    #unitroot(data,column)
+    #dif(data,column)
+    #whit(data,lagnum)
+    #optilag(data,p,q) #p,q are the max length
+    #model(data,p,d,q) #ARIMA(p,d,q) 
+    #var(data,columny,columnx): #data here should be a complete data
+    #HWES(data)
+#===============================================================
+#===============================================================
+#===============================================================
+#===============================================================
 
 info_all = pd.read_csv('2019-06.csv', parse_dates=True, index_col=0)
 info_hos = info_all[['HOUST']]
-
-#print(info_hos.info())
-#print(info_hos)
-# graph 1&2
-#info_hos.ix['1959-01-01':'2001-01-01'].plot()
-#info_hos.rolling(10).mean().plot()
 hos_train = info_hos['1959-01-01':'2001-01-01']
 
-#Exponentially weighted windows ewm
-#graph 3
-'''
-fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True,
-                         figsize=(12, 7))
+#basicinfo(hos_train,'1959-01-01','2001-01-01')
+#unitroot(hos_train,u'HOUST')
+#ARIMA(hos_train,3,0,3).optilag()
+
+#optilag(hos_train,3,3)
+#model(hos_train,2,0,2)
+#var(info_all,'HOUST','HOUSTS')
 
 
-ma = hos_train.rolling(20, min_periods=10).mean()
-ewma =hos_train.ewm(span=20).mean()
 
-
-hos_train.plot(style='k-', ax=axes[0])
-ma.plot(style='k--', ax=axes[0])
-hos_train.plot(style='k-', ax=axes[1])
-ewma.plot(style='k--', ax=axes[1])
-axes[0].set_title('Simple MA')
-axes[1].set_title('Exponentially-weighted MA')
-#-------------------------------------------------
-
-
-#acf & pacf 
-#graph 4&5
-from statsmodels.graphics.tsaplots import plot_acf
-plot_acf(hos_train).show()
-from statsmodels.graphics.tsaplots import plot_pacf
-plot_pacf(hos_train).show() #pacf
-#-------------------------------------------------
-'''
-#exam the stationarity 
-#print( ADF(hos_train[u'HOUST']))
-#print( KPSS(hos_train[u'HOUST']))
-
-#graph6 difference
-'''
-Dhos_train= hos_train.diff().dropna()
-Dhos_train.columns = [u'DHOUST']
-#Dhos_train.plot()
-#print( KPSS(Dhos_train[u'DHOUST']))
-'''
-#-------------------------------------------------
-
-#white noise test
-'''
-from statsmodels.stats.diagnostic import acorr_ljungbox
-print(acorr_ljungbox(hos_train, lags=1))
-'''
-#-------------------------------------------------
-
-#ARMA
-'''
-from statsmodels.tsa.arima_model import ARIMA
-
-#decide p,q
-
-pmax = 15 #suppose p,q < length/10
-qmax = 10 #suppose p,q < length/10
-bic_matrix = [] #bic matrix
-for p in range(pmax+1):
-  tmp = []
-  for q in range(qmax+1):
-    try: 
-      tmp.append(ARIMA(hos_train, (p,0,q)).fit().bic)
-    except:
-      tmp.append(None)
-  bic_matrix.append(tmp)
-
-bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
-
-p,q = bic_matrix.stack().idxmin() #先用stack展平，然后用idxmin找出最小值位置。
-print(u'BIC最小的p值和q值为：%s、%s' %(p,q)) 
-
-
-model = ARIMA(hos_train,(p,0,q)).fit() #ARIMA(0, 1, 1) model
-print('modelsummary!!') #model report
-print(model.summary())
-print(model.forecast(1))
-'''
-#-------------------------------------------------
-
-#VAR
-'''
-from statsmodels.tsa.vector_ar.var_model import VAR
-info_var = info_all[['HOUST','HOUSTNE']]
-
-#optlag = VAR(info_var).select_order(trend='c')
-model = VAR(info_var).fit(maxlags=10,method='ols', ic='aic', trend='c')
-print(model.summary())
-print(model.forecast(model.y,1))
-'''
-#-------------------------------------------------
-
-#HWES
-from statsmodels.tsa.holtwinters import ExponentialSmoothing
-model = ExponentialSmoothing(hos_train).fit()
-forec = model.predict(len(hos_train), len(hos_train))
-print(forec)
