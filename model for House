@@ -138,18 +138,31 @@ def optilag(data,p,q): #p,q are the max length
     p= math.ceil(p/4)
     print(u'BIC最小的p值和q值为：%s、%s' %(p,q)) 
     print('============================')
-    print('============================')  
-    return;
+    print('============================') 
+    M=[]
+    M.append(p)
+    M.append(q)
+    return M;
 #-------------------------------------------------    
 def model(data,p,d,q):#ARIMA(p,d,q) 
     from statsmodels.tsa.arima_model import ARIMA
     model = ARIMA(data,(p,d,q)).fit() 
+    #print('============================')
+    #print('modelsummary!!') #model report
+    #print('============================')
+    #print(model.summary())
     print('============================')
-    print('modelsummary!!') #model report
+    print('Forecast Result') #model report
     print('============================')
-    print(model.summary())
-    print(model.forecast(1))
-    return;
+    Fore=model.forecast(1)
+    print(Fore)
+    return Fore;
+#-------------------------------------------------
+def arpredict(data,p,d,q,t1,t2):
+    from statsmodels.tsa.arima_model import ARIMA
+    model=ARIMA(data,(p,d,q))
+    pre =model.predict(data)
+    return pre;
 #-------------------------------------------------
 '''
 #decide p,q
@@ -243,6 +256,7 @@ def hwes(data):
     #whit(data,lagnum)
     #optilag(data,p,q) #p,q are the max length
     #model(data,p,d,q) #ARIMA(p,d,q) 
+    #arpredict(data,p,d,q,t1,t2)
     #var(data,columny,columnx): #data here should be a complete data
     #hwes(data)
 #===============================================================
@@ -254,32 +268,85 @@ df=d['sasdate']
 df= pd.to_datetime(df)
 info_hos = info_all[['HOUST']]
 #hos_train = info_hos['1959-01-01':'2001-01-01']
-
-# 1959-01-01 is df[0]
-# 2001-01-01 is df[504]
-
-#basicinfo(hos_train,'1959-01-01','2001-01-01')
+'''
+test for the arma model
+hos_train = info_hos['1972-05-01':'2014-05-01']
+optilag(hos_train,3,3)
+fore= model(hos_train,1,0,1)
+print(df[160])
+print(df[664])
+'''
+#basicinfo(hos_train,'1972-03-01','2014-03-01')
 #unitroot(hos_train,u'HOUST')
 #ARIMA(hos_train,3,0,3).optilag()
 
-#optilag(hos_train,3,3)
-#model(hos_train,2,0,2)
+
+
+
+
 #var(info_all,'HOUST','HOUSTS')
 #hwes(hos_train)
-
 #parse('2011-01-03')
 
-i=504
-j=0
+#===============================================================
+#loop for ARMA
 
-while i<550 :
+# 1959-01-01 is df[0]
+# 2001-01-01 is df[504]
+#max df: 725, 2019-05-01
+
+
+j=0
+i=504
+tmp = []
+while i<725: #change point 1
+        
     hos_train = info_hos[df[j]:df[i]]
-    #print(hos_train)
-    hwes(hos_train)
+    
+    M=optilag(hos_train,4,3)
+    
+    fore= model(hos_train,M[0],0,M[1])
+    #print(fore[0])
+    a= fore[0]  
+    tmp.append(a[0])      
     i = i+1
     j=j+1
     continue;
+#print(tmp)
 
+foresult=Series(tmp,index=pd.date_range('2/1/2001', periods=221, freq='MS'))# change point 2
+#periods = x-504
+print(foresult)
+
+
+#plot 
+
+
+ax = info_hos.ix['2001-02-01':'2019-06-01'].plot(style='k-')# change point 3
+foresult.plot(color='blue',ax=ax,title='forecast')
+
+
+#===============================================================
+'''
+j=0
+i=504
+tmp = []
+while i<506 :
+    hos_train = info_hos[df[j]:df[i]]
+    
+    
+
+    fore= model(hos_train,2,0,2)
+    #print(fore[0])
+    tmp.append(fore[0])
+    print(foresult)
+    #===========================================================
+    #print(hos_train)
+    #hwes(hos_train)
+    i = i+1
+    j=j+1
+    continue;
+'''
 
 
 
