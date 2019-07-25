@@ -15,8 +15,6 @@ from statsmodels.tsa.vector_ar.var_model import VAR
 from statsmodels.tsa.stattools import adfuller as ADF
 from statsmodels.tsa.stattools import kpss as KPSS
 import math
-from dateutil.parser import parse
-from pandas.tseries.offsets import Day,MonthEnd, MonthBegin
 #===============================================================
 #basic information and graph
 #===============================================================
@@ -126,12 +124,12 @@ def optilag(data,p,q): #p,q are the max length
             print('============================')
             '''
     bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
-    print('============================')
-    print('============================')
-    print(bic_matrix)
+    #print('============================')
+    #print('============================')
+    #print(bic_matrix)
     p,q = bic_matrix.stack().idxmin()
-    print('============================')
-    print('============================')
+    #print('============================')
+    #print('============================')
     print()
     print('============================')
     print('============================')
@@ -146,7 +144,7 @@ def optilag(data,p,q): #p,q are the max length
 #-------------------------------------------------    
 def model(data,p,d,q):#ARIMA(p,d,q) 
     from statsmodels.tsa.arima_model import ARIMA
-    model = ARIMA(data,(p,d,q)).fit() 
+    model = ARIMA(data,(p,d,q)).fit(disp=False) 
     #print('============================')
     #print('modelsummary!!') #model report
     #print('============================')
@@ -163,52 +161,6 @@ def arpredict(data,p,d,q,t1,t2):
     model=ARIMA(data,(p,d,q))
     pre =model.predict(data)
     return pre;
-#-------------------------------------------------
-'''
-#decide p,q
-class ARIMA:
-    from statsmodels.tsa.arima_model import ARIMA
-    def __init__(self,data,p,d,q):
-        self.data=data;
-        self.p=p;
-        self.d=d;
-        self.q=q;
-    
-    def optilag(self): #p,q are the max length
-        pmax = self.p 
-        qmax = self.q 
-
-        bic_matrix = [] #bic matrix
-        for p in range(pmax+1):
-            tmp = []
-            for q in range(qmax+1):
-                try: 
-                    tmp.append(ARIMA(self.data, (p,0,q)).fit().bic)
-                except:
-                    tmp.append(None)
-                bic_matrix.append(tmp)
-            
-        bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
-        p,q = bic_matrix.stack().idxmin()
-        
-        print('============================')
-        print('============================')
-        print(u'the minimum p and q is：%s、%s' %(p,q)) 
-        print('============================')
-        print('============================')  
-        self.p=p;
-        self.q=q;
-#-------------------------------------------------    
-        def model():#ARIMA(p,d,q) 
-            model = ARIMA(self.data,(self.p,self.d,self.q)).fit() 
-            print('============================')
-            print('modelsummary!!') #model report
-            print('============================')
-            print(model.summary())
-            print(model.forecast(1))
-            return;
-#-------------------------------------------------
-'''
 
 
 #===============================================================
@@ -217,23 +169,23 @@ class ARIMA:
 
 def var(data,columny,columnx): #data here should be a complete data
     info_var = data[[columny,columnx]]
-    optlag = VAR(info_var).select_order(trend='c')
-    print(optlag)
+    #optlag = VAR(info_var).select_order(trend='c')
+    #print(optlag)
     model = VAR(info_var).fit(maxlags=10,method='ols', ic='aic', trend='c')
-    print(model.summary())
-    print(model.forecast(model.y,1))
+    yhat =model.forecast(model.y,1)
+    print(yhat)
 
-    return;
+    return yhat;
 
 #===============================================================
 #HWES
 #===============================================================
 
-def hwes(data):
+def hwes(hos_train):
     from statsmodels.tsa.holtwinters import ExponentialSmoothing
-    model = ExponentialSmoothing(hos_train).fit()
-    
-    forec = model.predict(len(hos_train), len(hos_train))
+    model = ExponentialSmoothing(hos_train).fit()    
+    #forec = model.predict(len(hos_train), len(hos_train))
+    forec = model.forecast(1)
     print('============================')
     print('============================')
     print('This is the forecast result')
@@ -241,8 +193,68 @@ def hwes(data):
     print('============================')
     print('============================')
     print()
-    return;
+    return forec;
 
+
+#===============================================================
+#VARMA
+#===============================================================
+def varmax(data,columny,columnx):
+    from statsmodels.tsa.statespace.varmax import VARMAX
+# fit model   
+    info_var = data[[columny,columnx]]
+    
+
+    bic_matrix = [] #bic matrix
+    for p in range(3):
+        tmp = []
+        for q in range(3):
+            try:
+                m=VARMAX(info_var,order=(p,q)).fit(disp=False).bic
+                print(u'for order：%s、%s' %(p,q))
+                print(u'the bic is:%s'%(m))
+                tmp.append(m)
+            except:
+                tmp.append(None)
+        bic_matrix.append(tmp)
+            
+    #lag check
+    '''
+    print('============================')
+    print('============================')
+    
+    print('this is bic_matrix:')
+    print(bic_matrix)
+    print()
+    print(u'p值和q值为：%s、%s' %(p,q))
+    print('============================')
+    print('============================')
+            
+    bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
+    #print('============================')
+    #print('============================')
+    #print(bic_matrix)
+    p,q = bic_matrix.stack().idxmin()
+    print(u'MINIMUM p值和q值为：%s、%s' %(p,q))
+    '''
+    #model = VARMAX(info_var,order=(2, 2))
+    #model_fit = model.fit(disp=False)
+    #res =model.VARMAXResults()  
+    #bic=model_fit.bic
+    
+# make prediction
+    #data_exog2 = [[100]]
+    model = VARMAX(info_var,order=(p,q))
+    model_fit = model.fit(disp=False)
+    yhat =model_fit.forecast(1)
+    print('============================')
+    print('============================')
+    print('This is the forecast result')
+    print(yhat)
+    print('============================')
+    print('============================')
+    
+    return yhat;    
 #===============================================================
 #===============================================================
     #main 
@@ -258,6 +270,7 @@ def hwes(data):
     #model(data,p,d,q) #ARIMA(p,d,q) 
     #arpredict(data,p,d,q,t1,t2)
     #var(data,columny,columnx): #data here should be a complete data
+    #varmax(info_all,'HOUST','HOUSTS'),data here should be a complete data
     #hwes(data)
 #===============================================================
 #===============================================================
@@ -266,36 +279,124 @@ info_all = pd.read_csv('2019-06.csv', parse_dates=True, index_col=0)
 d=pd.read_csv('2019-06.csv') # get time sequence
 df=d['sasdate'] 
 df= pd.to_datetime(df)
-info_hos = info_all[['HOUST']]
-#hos_train = info_hos['1959-01-01':'2001-01-01']
+info_hos=info_all['HOUST']
+hos_train = info_hos['1959-01-01':'2001-01-01']
+
 '''
 test for the arma model
 hos_train = info_hos['1972-05-01':'2014-05-01']
 optilag(hos_train,3,3)
 fore= model(hos_train,1,0,1)
 print(df[160])
-print(df[664])
+print(df[200])
 '''
+
 #basicinfo(hos_train,'1972-03-01','2014-03-01')
 #unitroot(hos_train,u'HOUST')
 #ARIMA(hos_train,3,0,3).optilag()
-
-
-
-
-
 #var(info_all,'HOUST','HOUSTS')
+
 #hwes(hos_train)
-#parse('2011-01-03')
+#CPIAUCSL
+#varmax(info_all,'HOUST','HOUSTS')
+
+
+#===============================================================
+#loop for VARMAX,HWES, ARIMA
+#---------------------------------------------------------------
+# 1959-01-01 is df[0]
+# 2001-01-01 is df[504]
+#max df: 725, 2019-05-01
+#===============================================================
+#'''
+j=0
+i=504
+m=2# 1: VARMA 2: VAR 3:HWES ELSE: ARIMA
+foresult=DataFrame() # for VARMAX
+tmp = []
+var1 = []
+var2= []
+while i<725: #change point 1  
+    train = info_all[df[j]:df[i]]
+    
+    if m==1: #VARMAX
+        fore= varmax(train,'HOUST','HOUSTS')
+        print(fore) 
+        foresult=foresult.append(fore)
+    elif m==2:#VAR
+        fore= var(train,'HOUST','HOUSTS')
+        a= fore[0] 
+        var1.append(a[0])
+        var2.append(a[1])
+    elif m==3:  #HWES 
+        trainh=train['HOUST']
+        fore= hwes(trainh)
+        print(fore[0]) 
+        tmp.append(fore[0])
+
+    else: #ARMA,tmp
+        trainh=train['HOUST']
+        M=optilag(trainh,4,3)
+        fore= model(trainh,M[0],0,M[1])
+        print(fore[0])
+        a= fore[0]  
+        tmp.append(a[0]) 
+ 
+
+    i = i+1
+    j=j+1
+    
+    print('This is J: %s' %(j))
+    continue;
+#print result
+print(foresult)
+print(tmp)
+print(var1)
+print(var2)
+
+
+#plot 
+#'''
+info_var = info_all[['HOUST','HOUSTS']]
+info_hos = info_all['HOUST']
+if m==1:
+    ax = info_var.ix['2001-02-01':'2019-06-01'].plot(style='k-')# change point 3,originial data
+    foresult.plot(color='blue',ax=ax,title='forecast')
+    #foresult.to_csv('VARMAX_Foresult.csv')
+elif m==2:
+    ax = info_var.ix['2001-02-01':'2019-06-01'].plot(style='k-')
+    foresult1=DataFrame(var1,index=pd.date_range('2/1/2001', periods=221, freq='MS'))# 
+    foresult1.columns =['Houst Fore']
+    
+    foresult2=DataFrame(var2,index=pd.date_range('2/1/2001', periods=221, freq='MS'))#
+    foresult2.columns =['Housts Fore']
+    
+    comb =pd.concat([foresult1,foresult2],axis=1)
+    comb.plot(color='blue',ax=ax,title='ARMA forecast')
+    
+    #comb.to__csv('VAR_Foresult.csv')
+elif m==3:
+    ax = info_hos.ix['2001-02-01':'2019-06-01'].plot(style='k-')# change point 3,originial data
+    foresult=DataFrame(tmp,index=pd.date_range('2/1/2001', periods=221, freq='MS'))# change point 2
+    foresult.plot(color='blue',ax=ax,title='HWES Forecast')
+    #foresult.to_csv('HWES_Foresult.csv')
+else:
+    
+    foresult=DataFrame(tmp,index=pd.date_range('2/1/2001', periods=221, freq='MS'))# change point 2
+    foresult.plot(color='blue',ax=ax,title='ARMA forecast')
+    #foresult.to_csv('ARMA_Foresult.csv')
+
+#'''
+
 
 #===============================================================
 #loop for ARMA
-
+#===============================================================
 # 1959-01-01 is df[0]
 # 2001-01-01 is df[504]
 #max df: 725, 2019-05-01
 
-
+'''
 j=0
 i=504
 tmp = []
@@ -311,10 +412,11 @@ while i<725: #change point 1
     tmp.append(a[0])      
     i = i+1
     j=j+1
+    print(i)
     continue;
 #print(tmp)
 
-foresult=Series(tmp,index=pd.date_range('2/1/2001', periods=221, freq='MS'))# change point 2
+foresult=DataFrame(tmp,index=pd.date_range('2/1/2001', periods=221, freq='MS'))# change point 2
 #periods = x-504
 print(foresult)
 
@@ -324,29 +426,13 @@ print(foresult)
 
 ax = info_hos.ix['2001-02-01':'2019-06-01'].plot(style='k-')# change point 3
 foresult.plot(color='blue',ax=ax,title='forecast')
-
+foresult.to_csv('ARMA_Foresult.csv')
+'''
+#===============================================================
+#loop for hwes
+#===============================================================
 
 #===============================================================
-'''
-j=0
-i=504
-tmp = []
-while i<506 :
-    hos_train = info_hos[df[j]:df[i]]
-    
-    
-
-    fore= model(hos_train,2,0,2)
-    #print(fore[0])
-    tmp.append(fore[0])
-    print(foresult)
-    #===========================================================
-    #print(hos_train)
-    #hwes(hos_train)
-    i = i+1
-    j=j+1
-    continue;
-'''
 
 
 
