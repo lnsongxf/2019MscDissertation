@@ -20,7 +20,7 @@ import math
 #===============================================================
 def basicinfo(data,t1,t2):
     
-    print(data.info())
+    #print(data.info())
 #graph 1&2
     data.ix[t1:t2].plot()
 #info_hos.rolling(10).mean().plot()
@@ -142,9 +142,9 @@ def optilag(data,p,q): #p,q are the max length
     M.append(q)
     return M;
 #-------------------------------------------------    
-def model(data,p,d,q):#ARIMA(p,d,q) 
+def model(data,p,d,q,fre):#ARIMA(p,d,q) 
     from statsmodels.tsa.arima_model import ARIMA
-    model = ARIMA(data,(p,d,q)).fit(disp=False) 
+    model = ARIMA(data,(p,d,q),freq=fre,start_ar_lags=p).fit(disp=False) 
     #print('============================')
     #print('modelsummary!!') #model report
     #print('============================')
@@ -167,11 +167,11 @@ def arpredict(data,p,d,q,t1,t2):
 #VAR
 #===============================================================
 
-def var(data,columny,columnx): #data here should be a complete data
-    info_var = data[[columny,columnx]]
+def var(data,columnx,columny,columnz,columnn,fre): #data here should be a complete data
+    info_var = data[[columnx,columny,columnz,columnn]]
     #optlag = VAR(info_var).select_order(trend='c')
     #print(optlag)
-    model = VAR(info_var).fit(maxlags=10,method='ols', ic='aic', trend='c')
+    model = VAR(info_var).fit(maxlags=10,method='ols', ic='aic', trend='c',freq=fre)
     yhat =model.forecast(model.y,1)
     print(yhat)
 
@@ -181,9 +181,9 @@ def var(data,columny,columnx): #data here should be a complete data
 #HWES
 #===============================================================
 
-def hwes(hos_train):
+def hwes(hos_train,fre):
     from statsmodels.tsa.holtwinters import ExponentialSmoothing
-    model = ExponentialSmoothing(hos_train).fit()    
+    model = ExponentialSmoothing(hos_train,freq=fre).fit()    
     #forec = model.predict(len(hos_train), len(hos_train))
     forec = model.forecast(1)
     print('============================')
@@ -199,10 +199,10 @@ def hwes(hos_train):
 #===============================================================
 #VARMA
 #===============================================================
-def varmax(data,columny,columnx):
+def varmax(data,columnx,columny,columnz,columnn,fre):
     from statsmodels.tsa.statespace.varmax import VARMAX
 # fit model   
-    info_var = data[[columny,columnx]]
+    info_varmax = data[[columnx,columny,columnz,columnn]]
     
 
     bic_matrix = [] #bic matrix
@@ -210,7 +210,7 @@ def varmax(data,columny,columnx):
         tmp = []
         for q in range(3):
             try:
-                m=VARMAX(info_var,order=(p,q)).fit(disp=False).bic
+                m=VARMAX(info_varmax,order=(p,q),freq=fre).fit(disp=False).bic
                 print(u'for order：%s、%s' %(p,q))
                 print(u'the bic is:%s'%(m))
                 tmp.append(m)
@@ -244,7 +244,7 @@ def varmax(data,columny,columnx):
     
 # make prediction
     #data_exog2 = [[100]]
-    model = VARMAX(info_var,order=(p,q))
+    model = VARMAX(info_var,order=(p,q),freq=fre)
     model_fit = model.fit(disp=False)
     yhat =model_fit.forecast(1)
     print('============================')
@@ -288,9 +288,9 @@ def modeleva(model,actual,predict):
 
 
 #===============================================================
-#===============================================================
+#     |
     #main 
-#===============================================================
+#     |
 #===============================================================
     #basicinfo(data,t1,t2)
     #ewm(data): # data is the train data
@@ -305,68 +305,87 @@ def modeleva(model,actual,predict):
     #varmax(info_all,'HOUST','HOUSTS'),data here should be a complete data
     #hwes(data)
 #===============================================================
+    
+    
+    
+    
 #===============================================================
+#read data
+#---------------------------------------------------------------   
+filename='2019-07.csv' #'2019-06.csv' 
+fre='QS'
+#----------------
 
-info_all = pd.read_csv('2019-06.csv', parse_dates=True, index_col=0)
-d=pd.read_csv('2019-06.csv') # get time sequence
+info_all = pd.read_csv(filename, parse_dates=True, index_col=0)
+d=pd.read_csv(filename) # get time sequence
 df=d['sasdate']#data index 
 df= pd.to_datetime(df)
 
-columnx='HOUST'
-columny='HOUSTS'
-
+#----------------
+columnx='USSTHPI'#House price,All-Transactions House Price Index for the United States (Index 1980 Q1=100),
+#starts from 1975-3-1,df[64]
+columny='GDPC1'#GDP,Real Gross Domestic Product, 3 Decimal (Billions of Chained 2012 Dollars)
+columnz='CPIAUCSL'#CPI,Consumer Price Index for All Urban Consumers: All Items (Index 1982-84=100)
+columnn='PPIACO' #PPI,Producer Price Index for All Commodities (Index 1982=100)
+#----------------
 info_hos=info_all[columnx]
-hos_train = info_hos['1959-01-01':'2001-01-01']
-
-'''
-test for the arma model
-hos_train = info_hos['1972-05-01':'2014-05-01']
-optilag(hos_train,3,3)
-fore= model(hos_train,1,0,1)
-print(df[160])
-print(df[200])
-'''
-
-#basicinfo(hos_train,'1972-03-01','2014-03-01')
-#unitroot(hos_train,u'HOUST')
-#ARIMA(hos_train,3,0,3).optilag()
-#var(info_all,'HOUST','HOUSTS')
-
-#hwes(hos_train)
-#CPIAUCSL
-#varmax(info_all,'HOUST','HOUSTS')
-
+#hos_train = info_hos['1959-01-01':'2001-01-01']
+#----------------
 
 #===============================================================
-#loop for VARMAX,HWES, ARIMA
+#check for stationarity
 #---------------------------------------------------------------
-# 1959-01-01 is df[0]
+
+basicinfo(info_all[columnx],df[0],df[241])
+basicinfo(info_all[columny],df[0],df[241])
+basicinfo(info_all[columnz],df[0],df[241])
+basicinfo(info_all[columnn],df[0],df[241])
+
+#===============================================================
+#loop for VARMAX,VAR,HWES,ARIMA
+#---------------------------------------------------------------
+#for MD 
+#1959-01-01 is df[0]
 # 2001-01-01 is df[504]
 # 2001-02-01 is df[505]
 # 2019-05-01 is df[724]
-#max df: 725, 2019-05-01
+#max df: 725, 2019-06-01
+
+#for QD
+#242 entries, 1959-03-01 to 2019-06-01
+#1959-03-01 00:00:00 df[0]
+#2001-06-01 00:00:00 df[169]
+#2001-09-01 00:00:00 df[170]
+#2019-06-01 00:00:00 df[241]
 #===============================================================
 #'''
+
 j=0
 i=504
+q=506 # the end point of forecasting
+p=i+1 # start point of forecasting
+# forecast range: [p,q],length:q-p+1
+
 m=1# 1: VARMA 2: VAR 3:HWES ELSE: ARIMA
 foresult=DataFrame() # for VARMAX
 tmp = []
 var1 = []
 var2= []
-while i<506: #change point 1  
+while i<q: #change point 1  
     train = info_all[df[j]:df[i]]
     
     if m==1: #VARMAX
         fore= varmax(train,columnx,columny)
         print(fore) 
         foresult=foresult.append(fore)
+        
     elif m==2:#VAR
         fore= var(train,columnx,columny)
         a= fore[0] 
         var1.append(a[0])
         var2.append(a[1])
-    elif m==3:  #HWES 
+        
+    elif m==3:  #HWES,tmp
         trainh=train[columnx]
         fore= hwes(trainh)
         print(fore[0]) 
@@ -376,7 +395,7 @@ while i<506: #change point 1
         trainh=train[columnx]
         M=optilag(trainh,4,3)
         fore= model(trainh,M[0],0,M[1])
-        print(fore[0])
+        print(fore)
         a= fore[0]  
         tmp.append(a[0]) 
  
@@ -386,6 +405,7 @@ while i<506: #change point 1
     
     print('This is J: %s' %(j))
     continue;
+
 #print result
 print(foresult)
 print(tmp)
@@ -399,30 +419,33 @@ info_var = info_all[[columnx,columny]]
 info_hos = info_all[columnx]
 info_hos1 = info_all[columny]
 
+
 if m==1:#VARMAX
-    ax = info_var.ix['2001-02-01':'2019-06-01'].plot(style='k-')# change point 3,originial data
+    ax = info_var.ix[df[p]:df[q]].plot(style='k-')# change point 3,originial data
     foresult.plot(color='blue',ax=ax,title='forecast')
     
     #-----calculate MSE,RMSE...------
+    '''
     print('============================')
     print('============================')
-    rmse1=modeleva('MAPE',info_hos[df[505]:df[724]],foresult['HOUSTS'])
-    rmse2=rmse(info_hos[df[505]:df[724]],foresult['HOUSTS'])
-    print(u'The RMSE for HOUST is: %s'%(rmse1))
+    rmse1=modeleva('MAPE',info_hos[df[p]:df[q]],foresult[columnx])
+    rmse2=rmse(info_hos[df[p]:df[q]],foresult[columny])
+    print(u'The RMSE for %s is: %s'%(columnx,rmse1))
     print('============================')
     print('============================')
-    print(u'The RMSE of HOUSTS is: %s'%(rmse2))
+    print(u'The RMSE of %s is: %s'%(columny,rmse2))
     
     #-----write to csv------
-    #foresult.to_csv('VARMAX_Foresult.csv')
-    
+    comb=pd.concat([foresult,info_var[df[p]:df[q]]],axis=1)
+    comb.to_csv('VARMAX_Foresult.csv')
+    #'''
 elif m==2:#VAR
-    ax = info_var.ix['2001-02-01':'2019-06-01'].plot(style='k-')
-    foresult1=DataFrame(var1,index=pd.date_range('2/1/2001', periods=220, freq='MS'))# 
-    foresult1.columns =['Houst Fore']
-    
-    foresult2=DataFrame(var2,index=pd.date_range('2/1/2001', periods=220, freq='MS'))#
-    foresult2.columns =['Housts Fore']
+    ax = info_var.ix[df[p]:df[q]].plot(style='k-')
+    foresult1=DataFrame(var1,index=pd.date_range('2/1/2001', periods=q-p+1, freq=fre))# 
+    foresult1.columns =[columnx +' Fore']
+
+    foresult2=DataFrame(var2,index=pd.date_range('2/1/2001',periods=q-p+1, freq=fre))#
+    foresult2.columns =[columny+' Housts Fore']
     
     comb =pd.concat([foresult1,foresult2],axis=1)
     comb.plot(color='blue',ax=ax,title='ARMA forecast')
@@ -430,19 +453,20 @@ elif m==2:#VAR
     #-----calculate MSE,RMSE...------
     print('============================')
     print('============================')
-    rmse1=rmse(info_hos[df[505]:df[724]],foresult1)
+    rmse1=rmse(info_hos[df[p]:df[q]],foresult1)
     print(u'The RMSE of HOUST is: %s'%(rmse1))
     print('============================')
     print('============================') 
-    rmse2=rmse(info_hos1[df[505]:df[724]],foresult2)#change point
+    rmse2=rmse(info_hos1[df[p]:df[q]],foresult2)#change point
     print(u'The RMSE of HOUSTS is: %s'%(rmse2))
     
     #-----write to csv------
-    #comb.to__csv('VAR_Foresult.csv')
+    #comb1=pd.concat([comb,info_hos[df[p]:df[q]]],axis=1)
+    #comb1.to__csv('VAR_Foresult.csv')
     
 elif m==3:#HWES
-    ax = info_hos.ix['2001-02-01':'2019-06-01'].plot(style='k-')# change point 3,originial data
-    foresult=DataFrame(tmp,index=pd.date_range('2/1/2001', periods=220, freq='MS'))# change point 2
+    ax = info_hos.ix[df[p]:df[q]].plot(style='k-')# change point 3,originial data
+    foresult=DataFrame(tmp,index=pd.date_range('2/1/2001', periods=q-p+1, freq=fre))# change point 2
     foresult.columns =['Houst Fore']
     foresult.plot(color='blue',ax=ax,title='HWES Forecast')
    
@@ -450,22 +474,23 @@ elif m==3:#HWES
     #-----calculate MSE,RMSE...------
     print('============================')
     print('============================')
-    rmse=modeleva('MAPE',info_hos[df[505]:df[724]],foresult)
+    rmse=modeleva('MAPE',info_hos[df[p]:df[q]],foresult)
     print(u'The Evaluation value is: %s'%(rmse)) 
     
     
     #-----write to csv------
-    #comb =pd.concat([foresult,info_hos[df[505]:df[724]]],axis=1)
+    #comb =pd.concat([foresult,info_hos[df[p]:df[q]]],axis=1)
     #comb.to_csv('HWES_Foresult.csv')
 else:#ARMA
-    
-    foresult=DataFrame(tmp,index=pd.date_range('2/1/2001', periods=220, freq='MS'))# change point 2
+    ax = info_hos.ix[df[p]:df[q]].plot(style='k-')
+    foresult=DataFrame(tmp,index=pd.date_range('2/1/2001', periods=q-p+1, freq=fre))# change point 2
+    foresult.columns =['Houst Fore']
     foresult.plot(color='blue',ax=ax,title='ARMA forecast')
     
     #-----calculate MSE,RMSE...------
     print('============================')
     print('============================')
-    rmse=modeleva('MAPE',info_hos[df[505]:df[724]],foresult)
+    rmse=modeleva('MAPE',info_hos[df[p]:df[q]],foresult)
     print(u'The Evaluation value is: %s'%(rmse))    
     
     #-----write to csv------
@@ -473,13 +498,7 @@ else:#ARMA
 
 #'''
 
-#===============================================================
-#Model evaluation
-#===============================================================
 
-
-#===============================================================
-#===============================================================
 
 
 
