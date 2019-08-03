@@ -1,0 +1,42 @@
+#graph
+basicinfo(info_all[columnx],df[0],df[241])
+basicinfo(info_all[columny],df[0],df[241])
+basicinfo(info_all[columnz],df[0],df[241])
+basicinfo(info_all[columnn],df[0],df[241])
+
+#diff
+Ddatax=info_hos.diff().dropna()
+Ddatax=Ddatax.to_frame()
+Ddatax.columns =[columnx]
+Ddatax.plot()
+
+Ddatay=info_hos.diff().dropna()
+Ddatay=Ddatay.to_frame()
+Ddatay.columns =[columny]
+Ddatay.plot()
+
+Ddataz=info_hos.diff().dropna()
+Ddataz=Ddataz.to_frame()
+Ddataz.columns =[columnz]
+Ddataz.plot()
+
+Ddatan=info_hos.diff().dropna()
+Ddatan=Ddatan.to_frame()
+Ddatan.columns =[columnn]
+Ddatan.plot()
+
+comb=pd.concat([Ddatax,Ddatay,Ddataz,Ddatan],axis=1)
+comb.to_csv('Diff_result.csv')
+
+#re-read data
+
+info_all = pd.read_csv('Diff_result.csv', parse_dates=True, index_col=0)
+d=pd.read_csv('Diff_result.csv') # get time sequence
+df=d['sasdate']#data index 
+df= pd.to_datetime(df)
+
+
+unitroot(info_all,columnx) #stationary now
+unitroot(info_all,columny) #stationary now
+unitroot(info_all,columnz) #stationary now
+unitroot(info_all,columnn) #stationary now
