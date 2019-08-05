@@ -82,7 +82,7 @@ def dif(data,column): # column is the new name,should be sth like u'DHOUST'
     Ddata= data.diff().dropna()
     Ddata.columns = [column]
     #graph6
-    #Ddata.plot()  
+    Ddata.plot()  
     return Ddata;
     #print( ADF(Dhos_train[u'DHOUST']))
     #print( KPSS(Dhos_train[u'DHOUST']))
@@ -99,16 +99,21 @@ def whit(data,lagnum):
 #ARMA model
 #===============================================================
 #decide p,q
-def optilag(data,p,q): #p,q are the max length
+def optilag(data,p,q,fre): #p,q are the max length
     from statsmodels.tsa.arima_model import ARIMA
     pmax = p # for 
     qmax = q #suppose p,q < length/10
+    x=0
     bic_matrix = [] #bic matrix
-    for p in range(pmax+1):
+    for p in range(pmax):
         tmp = []
-        for q in range(qmax+1):
-            try: 
-                tmp.append(ARIMA(data, (p,0,q)).fit().bic)
+        for q in range(qmax):
+            try:
+                x =ARIMA(data, (p,0,q),freq=fre).fit().bic
+                if math.isnan(x):
+                    tmp.append(None)
+                else:
+                    tmp.append(x)
             except:
                 tmp.append(None)
             bic_matrix.append(tmp)
@@ -126,7 +131,9 @@ def optilag(data,p,q): #p,q are the max length
     bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
     #print('============================')
     #print('============================')
-    #print(bic_matrix)
+
+    bic_matrix.fillna(5000,inplace=True)
+    print(bic_matrix)
     p,q = bic_matrix.stack().idxmin()
     #print('============================')
     #print('============================')
@@ -144,7 +151,7 @@ def optilag(data,p,q): #p,q are the max length
 #-------------------------------------------------    
 def model(data,p,d,q,fre):#ARIMA(p,d,q) 
     from statsmodels.tsa.arima_model import ARIMA
-    model = ARIMA(data,(p,d,q),freq=fre,start_ar_lags=p).fit(disp=False) 
+    model = ARIMA(data,(p,d,q),freq=fre).fit(disp=False) 
     #print('============================')
     #print('modelsummary!!') #model report
     #print('============================')
@@ -155,13 +162,6 @@ def model(data,p,d,q,fre):#ARIMA(p,d,q)
     Fore=model.forecast(1)
     print(Fore)
     return Fore;
-#-------------------------------------------------
-def arpredict(data,p,d,q,t1,t2):
-    from statsmodels.tsa.arima_model import ARIMA
-    model=ARIMA(data,(p,d,q))
-    pre =model.predict(data)
-    return pre;
-
 
 #===============================================================
 #VAR
@@ -171,7 +171,7 @@ def var(data,columnx,columny,columnz,columnn,fre): #data here should be a comple
     info_var = data[[columnx,columny,columnz,columnn]]
     #optlag = VAR(info_var).select_order(trend='c')
     #print(optlag)
-    model = VAR(info_var).fit(maxlags=10,method='ols', ic='aic', trend='c',freq=fre)
+    model = VAR(info_var,freq=fre).fit(maxlags=10,method='ols', ic='aic', trend='c')
     yhat =model.forecast(model.y,1)
     print(yhat)
 
@@ -181,9 +181,9 @@ def var(data,columnx,columny,columnz,columnn,fre): #data here should be a comple
 #HWES
 #===============================================================
 
-def hwes(hos_train,fre):
+def hwes(hos_train,fre,level):
     from statsmodels.tsa.holtwinters import ExponentialSmoothing
-    model = ExponentialSmoothing(hos_train,freq=fre).fit()    
+    model = ExponentialSmoothing(hos_train,freq=fre).fit(smoothing_level=level)    
     #forec = model.predict(len(hos_train), len(hos_train))
     forec = model.forecast(1)
     print('============================')
@@ -217,9 +217,9 @@ def varmax(data,columnx,columny,columnz,columnn,fre):
             except:
                 tmp.append(None)
         bic_matrix.append(tmp)
-            
+   
     #lag check
-    '''
+
     print('============================')
     print('============================')
     
@@ -231,12 +231,13 @@ def varmax(data,columnx,columny,columnz,columnn,fre):
     print('============================')
             
     bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
+    bic_matrix.fillna(5000,inplace=True) 
     #print('============================')
     #print('============================')
     #print(bic_matrix)
     p,q = bic_matrix.stack().idxmin()
     print(u'MINIMUM p值和q值为：%s、%s' %(p,q))
-    '''
+
     #model = VARMAX(info_var,order=(2, 2))
     #model_fit = model.fit(disp=False)
     #res =model.VARMAXResults()  
@@ -244,7 +245,12 @@ def varmax(data,columnx,columny,columnz,columnn,fre):
     
 # make prediction
     #data_exog2 = [[100]]
-    model = VARMAX(info_var,order=(p,q),freq=fre)
+    if p==0:
+        if q==0:
+            p=1
+            q=1
+            
+    model = VARMAX(info_varmax,order=(p,q),freq=fre)
     model_fit = model.fit(disp=False)
     yhat =model_fit.forecast(1)
     print('============================')
@@ -313,7 +319,8 @@ def modeleva(model,actual,predict):
 #read data
 #---------------------------------------------------------------   
 filename='2019-07.csv' #'2019-06.csv' 
-fre='QS'
+fre='QS-DEC'
+forest='9/1/2001'
 #----------------
 
 info_all = pd.read_csv(filename, parse_dates=True, index_col=0)
@@ -322,7 +329,8 @@ df=d['sasdate']#data index
 df= pd.to_datetime(df)
 
 #----------------
-columnx='USSTHPI'#House price,All-Transactions House Price Index for the United States (Index 1980 Q1=100),
+columnx='PCECC96'#Real Personal Consumption Expenditures (Billions of Chained 2012 Dollars)
+#'USSTHPI' House price,All-Transactions House Price Index for the United States (Index 1980 Q1=100),
 #starts from 1975-3-1,df[64]
 columny='GDPC1'#GDP,Real Gross Domestic Product, 3 Decimal (Billions of Chained 2012 Dollars)
 columnz='CPIAUCSL'#CPI,Consumer Price Index for All Urban Consumers: All Items (Index 1982-84=100)
@@ -335,12 +343,51 @@ info_hos=info_all[columnx]
 #===============================================================
 #check for stationarity
 #---------------------------------------------------------------
-
+'''
+#graph
 basicinfo(info_all[columnx],df[0],df[241])
 basicinfo(info_all[columny],df[0],df[241])
 basicinfo(info_all[columnz],df[0],df[241])
 basicinfo(info_all[columnn],df[0],df[241])
 
+#diff
+Ddatax=info_all[columnx].diff().dropna()
+Ddatax=Ddatax.to_frame()
+Ddatax.columns =[columnx]
+Ddatax.plot()
+
+Ddatay=info_all[columny].diff().dropna()
+Ddatay=Ddatay.to_frame()
+Ddatay.columns =[columny]
+Ddatay.plot()
+
+Ddataz=info_all[columnz].diff().dropna()
+Ddataz=Ddataz.to_frame()
+Ddataz.columns =[columnz]
+Ddataz.plot()
+
+Ddatan=info_all[columnn].diff().dropna()
+Ddatan=Ddatan.to_frame()
+Ddatan.columns =[columnn]
+Ddatan.plot()
+
+comb=pd.concat([Ddatax,Ddatay,Ddataz,Ddatan],axis=1)
+comb.to_csv('Diff_result.csv')
+'''
+#re-read data
+
+info_all = pd.read_csv('Diff_result.csv', parse_dates=True, index_col=0)
+d=pd.read_csv('Diff_result.csv') # get time sequence
+df=d['sasdate']#data index 
+df= pd.to_datetime(df)
+
+
+'''
+unitroot(info_all,columnx) #stationary now,diff 3 times
+unitroot(info_all,columny) #stationary now,diff 3 times
+unitroot(info_all,columnz) #stationary now,diff 3 times
+unitroot(info_all,columnn) #stationary now,diff twice
+'''
 #===============================================================
 #loop for VARMAX,VAR,HWES,ARIMA
 #---------------------------------------------------------------
@@ -352,49 +399,54 @@ basicinfo(info_all[columnn],df[0],df[241])
 #max df: 725, 2019-06-01
 
 #for QD
-#242 entries, 1959-03-01 to 2019-06-01
-#1959-03-01 00:00:00 df[0]
-#2001-06-01 00:00:00 df[169]
-#2001-09-01 00:00:00 df[170]
-#2019-06-01 00:00:00 df[241]
+#239 entries, 1959-12-01 to 2019-06-01
+#1959-12-01 00:00:00 df[0]
+#2001-06-01 00:00:00 df[166]
+#2001-09-01 00:00:00 df[167]
+#2019-06-01 00:00:00 df[238]
 #===============================================================
 #'''
 
 j=0
-i=504
-q=506 # the end point of forecasting
+i=166
+q=238 # the end point of forecasting
 p=i+1 # start point of forecasting
 # forecast range: [p,q],length:q-p+1
 
-m=1# 1: VARMA 2: VAR 3:HWES ELSE: ARIMA
+m=3# 1: VARMA 2: VAR 3:HWES ELSE: ARIMA
 foresult=DataFrame() # for VARMAX
 tmp = []
 var1 = []
 var2= []
+var3= []
+var4=[]
+level=0.7
+
 while i<q: #change point 1  
     train = info_all[df[j]:df[i]]
-    
     if m==1: #VARMAX
-        fore= varmax(train,columnx,columny)
+        fore= varmax(train,columnx,columny,columnz,columnn,fre)
         print(fore) 
         foresult=foresult.append(fore)
         
     elif m==2:#VAR
-        fore= var(train,columnx,columny)
+        fore= var(train,columnx,columny,columnz,columnn,fre)
         a= fore[0] 
         var1.append(a[0])
         var2.append(a[1])
+        var3.append(a[2])
+        var4.append(a[3])
         
     elif m==3:  #HWES,tmp
-        trainh=train[columnx]
-        fore= hwes(trainh)
+        trainh=train[columnn]
+        fore= hwes(trainh,fre,level)
         print(fore[0]) 
         tmp.append(fore[0])
 
     else: #ARMA,tmp
         trainh=train[columnx]
-        M=optilag(trainh,4,3)
-        fore= model(trainh,M[0],0,M[1])
+        M=optilag(trainh,4,3,fre)
+        fore= model(trainh,M[0],0,M[1],fre)
         print(fore)
         a= fore[0]  
         tmp.append(a[0]) 
@@ -411,25 +463,44 @@ print(foresult)
 print(tmp)
 print(var1)
 print(var2)
-
+print(var3)
+print(var4)
 
 #plot 
 #'''
-info_var = info_all[[columnx,columny]]
-info_hos = info_all[columnx]
-info_hos1 = info_all[columny]
+info_var = info_all[[columnx,columny,columnz,columnn]]
 
+info1=info_all[columnx]
+info1=info1.to_frame()
+info1.columns=[columnx]
+
+info2=info_all[columny] 
+info2=info2.to_frame()
+info2.columns=[columny]
+ 
+info3=info_all[columnz]
+info3=info3.to_frame()
+info3.columns=[columnz]
+
+info4=info_all[columnn]
+info4=info4.to_frame()
+info4.columns=[columnn]
 
 if m==1:#VARMAX
-    ax = info_var.ix[df[p]:df[q]].plot(style='k-')# change point 3,originial data
-    foresult.plot(color='blue',ax=ax,title='forecast')
-    
+
+    #foresult.columns=[columnx+' Fore',columny+' Fore',columnz+' Fore',columnn+' Fore']
+    ax1 = info4.ix[df[p]:df[q]].plot()#
+    pl=foresult[columnn+' Fore']
+    pl=pl.to_frame()
+    pl.columns=[columnn+' Fore']
+    pl.plot(color='orange',ax=ax1,title='VARMAX forecast')
+
     #-----calculate MSE,RMSE...------
     '''
     print('============================')
     print('============================')
-    rmse1=modeleva('MAPE',info_hos[df[p]:df[q]],foresult[columnx])
-    rmse2=rmse(info_hos[df[p]:df[q]],foresult[columny])
+    rmse1=modeleva('MAPE',info1[df[p]:df[q]],foresult[columnx])
+    rmse2=rmse(info2[df[p]:df[q]],foresult[columny])
     print(u'The RMSE for %s is: %s'%(columnx,rmse1))
     print('============================')
     print('============================')
@@ -437,68 +508,92 @@ if m==1:#VARMAX
     
     #-----write to csv------
     comb=pd.concat([foresult,info_var[df[p]:df[q]]],axis=1)
-    comb.to_csv('VARMAX_Foresult.csv')
+    comb.to_csv('VARMAX_Foresult_QD.csv')
     #'''
 elif m==2:#VAR
-    ax = info_var.ix[df[p]:df[q]].plot(style='k-')
-    foresult1=DataFrame(var1,index=pd.date_range('2/1/2001', periods=q-p+1, freq=fre))# 
+    ax1 = info1.ix[df[p]:df[q]].plot()
+    foresult1=DataFrame(var1,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
     foresult1.columns =[columnx +' Fore']
+    foresult1.plot(color='orange',ax=ax1,title='VAR forecast')
+    
+    ax2 = info2.ix[df[p]:df[q]].plot()
+    foresult2=DataFrame(var2,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+    foresult2.columns =[columny+' Fore']
+    foresult2.plot(color='orange',ax=ax2,title='VAR forecast')
+    
+    ax3 = info3.ix[df[p]:df[q]].plot()    
+    foresult3=DataFrame(var3,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+    foresult3.columns =[columnz+' Fore']
+    foresult3.plot(color='orange',ax=ax3,title='VAR forecast')
+ 
+    ax4 = info4.ix[df[p]:df[q]].plot()
+    foresult4=DataFrame(var4,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+    foresult4.columns =[columnn+' Fore']
+    foresult4.plot(color='orange',ax=ax4,title='VAR forecast')
+    
+    comb =pd.concat([foresult1,foresult2,foresult3,foresult4],axis=1)
 
-    foresult2=DataFrame(var2,index=pd.date_range('2/1/2001',periods=q-p+1, freq=fre))#
-    foresult2.columns =[columny+' Housts Fore']
-    
-    comb =pd.concat([foresult1,foresult2],axis=1)
-    comb.plot(color='blue',ax=ax,title='ARMA forecast')
-    
     #-----calculate MSE,RMSE...------
+    '''
     print('============================')
     print('============================')
-    rmse1=rmse(info_hos[df[p]:df[q]],foresult1)
+    rmse1=rmse(info1[df[p]:df[q]],foresult1)
     print(u'The RMSE of HOUST is: %s'%(rmse1))
     print('============================')
     print('============================') 
-    rmse2=rmse(info_hos1[df[p]:df[q]],foresult2)#change point
+    rmse2=rmse(info2[df[p]:df[q]],foresult2)#change point
     print(u'The RMSE of HOUSTS is: %s'%(rmse2))
-    
+    '''
     #-----write to csv------
-    #comb1=pd.concat([comb,info_hos[df[p]:df[q]]],axis=1)
-    #comb1.to__csv('VAR_Foresult.csv')
+    #comb1=pd.concat([comb,info_var[df[p]:df[q]]],axis=1)
+    #comb1.to_csv('VAR_Foresult_QD.csv')
     
 elif m==3:#HWES
-    ax = info_hos.ix[df[p]:df[q]].plot(style='k-')# change point 3,originial data
-    foresult=DataFrame(tmp,index=pd.date_range('2/1/2001', periods=q-p+1, freq=fre))# change point 2
-    foresult.columns =['Houst Fore']
-    foresult.plot(color='blue',ax=ax,title='HWES Forecast')
+    ax = info4.ix[df[p]:df[q]].plot()# change point 3,originial data
+    foresult=DataFrame(tmp,index=pd.date_range(forest, periods=q-p+1, freq=fre))# change point 2
+    foresult.columns =[columnn+' Fore a=0.7']
+    foresult.plot(color='orange',ax=ax,title='HWES Forecast')
+    fore47=foresult
+    #-----calculate MSE,RMSE...------
+    '''
+    print('============================')
+    print('============================')
+    rmse=modeleva('MAPE',info1[df[p]:df[q-1]],foresult)
+    print(u'The Evaluation value is: %s'%(rmse)) 
+    '''
+    #fore2=foresult
+    #-----write to csv------
+    #comb =pd.concat([fore15,fore16,fore17,fore25,fore26,fore27,fore35,fore36,fore37,fore45,fore46,fore47,info_var[df[p]:df[q]]],axis=1)
+    #comb.to_csv('HWES_Foresult_QD.csv')
+else:#ARMA
+    ax = info1.ix[df[p]:df[q-1]].plot()
+    foresult=DataFrame(tmp,index=pd.date_range(forest, periods=q-p+1, freq=fre))# change point 2
+    foresult.columns =[columnx+' Fore']
+    foresult.plot(color='orange',ax=ax,title='ARMA Forecast')
+    
+    #-----calculate MSE,RMSE...------
+    '''
+    print('============================')
+    print('============================')
+    rmse1=modeleva('mse',info1[df[p]:df[q-1]],foresult)
+    print(u'The Evaluation value is: %s'%(rmse1))    
+    '''
+    #-----write to csv------
+
    
     
-    #-----calculate MSE,RMSE...------
-    print('============================')
-    print('============================')
-    rmse=modeleva('MAPE',info_hos[df[p]:df[q]],foresult)
-    print(u'The Evaluation value is: %s'%(rmse)) 
+    #comb =pd.concat([info_var[df[p]:df[q-1]],fore1,fore2,fore3,fore4],axis=1)
+    #comb.to_csv('ARMA_Foresult_QD.csv')
     
-    
-    #-----write to csv------
-    #comb =pd.concat([foresult,info_hos[df[p]:df[q]]],axis=1)
-    #comb.to_csv('HWES_Foresult.csv')
-else:#ARMA
-    ax = info_hos.ix[df[p]:df[q]].plot(style='k-')
-    foresult=DataFrame(tmp,index=pd.date_range('2/1/2001', periods=q-p+1, freq=fre))# change point 2
-    foresult.columns =['Houst Fore']
-    foresult.plot(color='blue',ax=ax,title='ARMA forecast')
-    
-    #-----calculate MSE,RMSE...------
-    print('============================')
-    print('============================')
-    rmse=modeleva('MAPE',info_hos[df[p]:df[q]],foresult)
-    print(u'The Evaluation value is: %s'%(rmse))    
-    
-    #-----write to csv------
-    #foresult.to_csv('ARMA_Foresult.csv')
-
 #'''
 
+#===============================================================
+#Model Average
+#===============================================================
 
+
+#===============================================================
+#===============================================================
 
 
 
