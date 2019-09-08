@@ -1,0 +1,759 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jul 20 11:57:37 2019
+
+@author: valler
+"""
+
+from __future__ import division
+import pandas as pd
+from pandas import DataFrame
+import numpy as np
+import matplotlib.pyplot as plt
+from statsmodels.tsa.vector_ar.var_model import VAR
+from statsmodels.tsa.stattools import adfuller as ADF
+from statsmodels.tsa.stattools import kpss as KPSS
+import math
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+
+
+#===============================================================
+   #print()
+#===============================================================
+def println(title,cont):
+    print()
+    print("===================================")
+    print("===================================")
+    print("This is the result of %s" %(title))
+    print('-----------------------------------')
+    print(cont)
+    print("===================================")
+    print("===================================")
+    print()
+    return;
+  
+#===============================================================
+#basic information and graph
+#===============================================================
+def originplot(data,p,q): 
+    #p is the starting forecast point, q is the end of the data
+    #p=169 q=241 for original data
+    #p=166 q=238 for after diff
+    
+    dxx=data#.diff().dropna()
+    dx=dxx[df[0]:df[p]]
+    Ddatax=dxx[df[p+1]:df[q]]
+    #Ddatax=Ddatax.to_frame()
+    Ddatax.columns =['forecast period']
+    ax1=dx.plot()
+    Ddatax.plot(color='orange',ax=ax1)
+    return;
+
+#===============================================================
+#Exponentially weighted windows and normal MA graph
+#===============================================================
+#graph 3
+def ewm(data): # data is the train data
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True,figsize=(12, 7))
+    ma = data.rolling(20, min_periods=10).mean()
+    ewma =data.ewm(span=20).mean()
+
+
+    data.plot(style='k-', ax=axes[0])
+    ma.plot(style='k--', ax=axes[0])
+    data.plot(style='k-', ax=axes[1])
+    ewma.plot(style='k--', ax=axes[1])
+    axes[0].set_title('Simple MA')
+    axes[1].set_title('Exponentially-weighted MA')
+    return;
+    
+    
+
+#===============================================================
+#acf and pacf graph
+#===============================================================
+def acf(data):
+#acf & pacf 
+#graph 4&5
+    from statsmodels.graphics.tsaplots import plot_acf
+    plot_acf(data).show()
+    from statsmodels.graphics.tsaplots import plot_pacf
+    plot_pacf(data).show() #pacf
+
+#===============================================================
+#exam the stationarity 
+#===============================================================
+def unitroot(info_all,column,cl):
+    res_a=ADF(info_all[column])
+    res_acv=res_a[4]
+    cv=res_acv[cl]
+    exam=info_all[column]
+    i=0 #counter  
+    
+    while(res_a[0]>cv):
+        exam=exam.diff().dropna()
+        res_a=ADF(exam)
+        res_acv=res_a[4]
+        cv=res_acv[cl]
+        i=i+1
+        continue;
+    
+    res_k=KPSS(info_all[column])
+    res_kcv=res_k[3]
+    cv=res_kcv[cl]
+    exam=info_all[column]
+    
+    j=0 #counter  
+   
+    while(res_k[0]>cv):
+        exam=exam.diff().dropna()
+        res_k=KPSS(exam)
+        res_kcv=res_k[3]
+        cv=res_kcv[cl]
+        j=j+1
+        continue;
+         
+    if i==j:
+        println('unit test','taking %s times of difference'%j)
+    else:
+        println('unit test(KPSS)','taking %s times of difference(KPSS), where ADF is %s times'%(j,i))
+    
+    Ddata=exam.to_frame()
+    Ddata.columns =[column]
+    return Ddata;
+#===============================================================
+#white noise test
+#===============================================================
+def whit(data,lagnum):
+    from statsmodels.stats.diagnostic import acorr_ljungbox
+    print(acorr_ljungbox(data, lags=lagnum))
+    return;
+
+#===============================================================
+#ARMA model
+#===============================================================
+#decide p,q
+def optilag(data,p,q,fre): #p,q are the max length
+    from statsmodels.tsa.arima_model import ARIMA
+    pmax = p # for 
+    qmax = q #suppose p,q < length/10
+    x=0
+    bic_matrix = [] #bic matrix
+    for p in range(pmax):
+        tmp = []
+        for q in range(qmax):
+            try:
+                x =ARIMA(data, (p,0,q),freq=fre).fit().aic
+                if math.isnan(x):
+                    tmp.append(None)
+                else:
+                    tmp.append(x)
+            except:
+                tmp.append(None)
+            bic_matrix.append(tmp)
+            '''
+            lag check
+            print('============================')
+            print('============================')
+            
+            print('this is tmp:')
+            print(tmp)
+            print(u'p值和q值为：%s、%s' %(p,q))
+            print('============================')
+            print('============================')
+            '''
+    bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
+    #print('============================')
+    #print('============================')
+
+    bic_matrix.fillna(5000,inplace=True)
+    print(bic_matrix)
+    p,q = bic_matrix.stack().idxmin()
+    #print('============================')
+    #print('============================')
+    print()
+    print('============================')
+    print('============================')
+    p= math.ceil(p/4)
+    print(u'the p and q has the minimum BIC：%s、%s' %(p,q)) 
+    print('============================')
+    print('============================') 
+    M=[]
+    M.append(p)
+    M.append(q)
+    return M;
+#-------------------------------------------------    
+def model(data,p,d,q,fre):#ARIMA(p,d,q) 
+    from statsmodels.tsa.arima_model import ARIMA
+    model = ARIMA(data,(p,d,q),freq=fre).fit(disp=False)
+    bic = ARIMA(data,(p,d,q),freq=fre).fit(disp=False).aic
+    #print('============================')
+    #print('modelsummary!!') #model report
+    #print('============================')
+    #print(model.summary())
+
+    Fore=model.forecast(1)
+    println('forecasting',Fore)
+    return Fore,bic;
+
+#===============================================================
+#VAR
+#===============================================================
+
+def var(data,columnx,columny,columnz,columnn,columnm,fre): #data here should be a complete data
+    if columnm==0:
+        info_var = data[[columnx,columny,columnz,columnn]]
+        model = VAR(info_var,freq=fre).fit(maxlags=10,method='ols', ic='bic', trend='c')
+        bic=model.aic
+        yhat =model.forecast(model.y,1)
+        println('VARforecasting',yhat)
+    else:
+        info_var = data[[columnx,columny,columnz,columnn,columnm]]
+        model = VAR(info_var,freq=fre).fit(maxlags=10,method='ols', ic='bic', trend='c')
+        bic=model.aic
+        yhat =model.forecast(model.y,1)
+        println('FAVARforecasting',yhat)
+    
+
+    return yhat,bic;
+
+#===============================================================
+#HWES
+#===============================================================
+
+def hwes(hos_train,fre,ic):
+    model_4 = ExponentialSmoothing(hos_train,freq=fre).fit(smoothing_level=0.4)    
+    model_5 = ExponentialSmoothing(hos_train,freq=fre).fit(smoothing_level=0.5)    
+    model_6 = ExponentialSmoothing(hos_train,freq=fre).fit(smoothing_level=0.6)    
+    model_7 = ExponentialSmoothing(hos_train,freq=fre).fit(smoothing_level=0.7)    
+    model_8 = ExponentialSmoothing(hos_train,freq=fre).fit(smoothing_level=0.8)    
+    
+    if ic=='aic':
+        ic4=model_4.aic
+        ic5=model_5.aic
+        ic6=model_6.aic
+        ic7=model_7.aic
+        ic8=model_8.aic
+    else:
+        ic4=model_4.bic
+        ic5=model_5.bic
+        ic6=model_6.bic
+        ic7=model_7.bic
+        ic8=model_8.bic 
+        
+    print('IC4:%s'%ic4)    
+    print('IC5:%s'%ic5)
+    print('IC6:%s'%ic6)
+    print('IC7:%s'%ic7)
+    print('IC8:%s'%ic8) 
+    
+    icc=[ic4,ic5,ic6,ic7,ic8]    
+    ind=np.argmin(icc)
+    if ind==0:
+        model=model_4
+    elif ind==1:
+        model=model_5
+    elif ind==2:
+        model=model_6
+    elif ind==3:
+        model=model_7
+    else:
+        model=model_8
+            
+    #forec = model.predict(len(hos_train), len(hos_train))
+    forec = model.forecast(1)
+    ic=model.bic
+    println('forecast',forec)
+    return forec,ic;
+
+
+#===============================================================
+#VARMA
+#===============================================================
+def varmax(data,columnx,columny,columnz,columnn,fre):
+    from statsmodels.tsa.statespace.varmax import VARMAX
+# fit model   
+    info_varmax = data[[columnx,columny,columnz,columnn]]
+    
+
+    bic_matrix = [] #bic matrix
+    for p in range(3):
+        tmp = []
+        for q in range(3):
+            try:
+                m=VARMAX(info_varmax,order=(p,q),freq=fre).fit(disp=False).aic
+                print(u'for order：%s、%s' %(p,q))
+                print(u'the bic is:%s'%(m))
+                tmp.append(m)
+            except:
+                tmp.append(None)
+        bic_matrix.append(tmp)
+   
+    #lag check
+
+    print('============================')
+    print('============================')
+    
+    print('this is bic_matrix:')
+    print(bic_matrix)
+    print()
+    print(u'p值和q值为：%s、%s' %(p,q))
+    print('============================')
+    print('============================')
+            
+    bic_matrix = pd.DataFrame(bic_matrix) #find the minimum 
+    bic_matrix.fillna(5000,inplace=True) 
+    #print('============================')
+    #print('============================')
+    #print(bic_matrix)
+    p,q = bic_matrix.stack().idxmin()
+    print(u'MINIMUM p值和q值为：%s、%s' %(p,q))
+
+    #model = VARMAX(info_var,order=(2, 2))
+    #model_fit = model.fit(disp=False)
+    #res =model.VARMAXResults()  
+    #bic=model_fit.bic
+    
+# make prediction
+    #data_exog2 = [[100]]
+    if p==0:
+        if q==0:
+            p=1
+            q=1
+            
+    model = VARMAX(info_varmax,order=(p,q),freq=fre)
+    model_fit = model.fit(disp=False)
+    bic =model_fit.aic
+    yhat =model_fit.forecast(1)
+    print('============================')
+    print('============================')
+    print('This is the forecast result')
+    print(yhat)
+    print('============================')
+    print('============================')
+    
+    return yhat,bic;   
+
+
+#===============================================================
+#Model evaluating
+#===============================================================
+def rmse(actual,predict):#data1 is actual data
+    from sklearn.metrics import mean_squared_error
+    from math import sqrt
+
+
+    rms = sqrt(mean_squared_error(actual,predict))
+    return rms;  
+
+ 
+def modeleva(model,actual,predict):
+    import  statsmodels.tools.eval_measures as ev
+    
+    if model =='mse':
+        res=ev.mse(actual,predict).mean()
+    elif model == 'rmse':
+        res =ev.rmse(actual,predict).mean()
+    elif model == 'MAPE':
+        x1 = np.asanyarray(actual)
+        x2 = np.asanyarray(predict)
+        res = np.mean(np.abs((x1 - x2) / x1)).mean()
+    else:
+        res = 'no such mean'
+    
+    return res;
+
+#===============================================================
+#Model running
+#===============================================================
+def runmodel(m,i,j,q,columnm,ic):
+    p=i+1
+    foresult=DataFrame() # for VARMAX
+    tmp = []
+    var1 = []
+    var2= []
+    var3= []
+    var4=[]
+    a=[columnx,columny,columnz,columnn]
+    bic=[]
+    bic1=[]
+    bic2=[]
+    bic3=[]
+    bic4=[]
+    while i<q: #change point 1  
+        train = info_all[df[j]:df[i]]
+        if m==1: #VARMAX
+            fore,b= varmax(train,columnx,columny,columnz,columnn,fre)
+            print(fore)
+            bic.append(b)
+            foresult=foresult.append(fore)
+            
+        elif m==2:#VAR
+            fore,b= var(train,columnx,columny,columnz,columnn,columnm,fre)
+            a= fore[0] 
+            var1.append(a[0])
+            var2.append(a[1])
+            var3.append(a[2])
+            var4.append(a[3])
+            bic.append(b)
+            
+        elif m==3:  #HWES,tmp
+            l=0
+            while l <4:
+                column=a[l]
+                trainh=train[column]
+                fore,b= hwes(trainh,fre,ic)
+
+                if l==0:
+                    var1.append(fore[0])
+                    bic1.append(b)
+                elif l==1:
+                    var2.append(fore[0])
+                    bic2.append(b)
+                elif l==2:
+                    var3.append(fore[0])
+                    bic3.append(b)
+                else:
+                    var4.append(fore[0])
+                    bic4.append(b)
+                    
+                l=l+1;
+                continue;
+                
+  
+        else: #ARMA,tmp
+            l=0
+            while l <4:
+                column=a[l]
+                trainh=train[column]
+                
+                M=optilag(trainh,4,3,fre)
+                fore,b= model(trainh,M[0],0,M[1],fre)
+                
+                b= fore[0]
+                if l==0:
+                    var1.append(b[0])
+                    bic1.append(b)
+                elif l==1:
+                    var2.append(b[0])
+                    bic2.append(b)
+                elif l==2:
+                    var3.append(b[0])
+                    bic3.append(b)
+                else:
+                    var4.append(b[0])
+                    bic4.append(b)
+                l=l+1;
+                continue;
+
+    
+        i = i+1
+        j=j+1
+        
+        print('This is J: %s' %(j))
+        continue;
+    
+    #print result
+    '''
+    print(foresult)
+    print(tmp)
+    print(var1)
+    print(var2)
+    print(var3)
+    print(var4)
+    '''
+    #plot 
+    #'''
+    info_var = info_all[[columnx,columny,columnz,columnn]]
+    
+    info1=info_all[columnx]
+    info1=info1.to_frame()
+    info1.columns=[columnx]
+    
+    info2=info_all[columny] 
+    info2=info2.to_frame()
+    info2.columns=[columny]
+     
+    info3=info_all[columnz]
+    info3=info3.to_frame()
+    info3.columns=[columnz]
+    
+    info4=info_all[columnn]
+    info4=info4.to_frame()
+    info4.columns=[columnn]
+    
+
+    
+    if m==1:#VARMAX
+        bic=DataFrame(bic,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+        bic.columns=[ic]
+        foresult.columns=[columnx+' Fore',columny+' Fore',columnz+' Fore',columnn+' Fore']
+        
+        ax1 = info1.ix[df[p]:df[q]].plot()#
+        pl1=foresult[columnx+' Fore']
+        pl1=pl1.to_frame()
+        pl1.columns=[columnx+' Fore']
+        pl1.plot(color='orange',ax=ax1,title='VARMAX forecast')
+        
+        ax2 = info2.ix[df[p]:df[q]].plot()#
+        pl2=foresult[columny+' Fore']
+        pl2=pl2.to_frame()
+        pl2.columns=[columny+' Fore']
+        pl2.plot(color='orange',ax=ax2,title='VARMAX forecast')
+
+        ax3 = info3.ix[df[p]:df[q]].plot()#
+        pl3=foresult[columnz+' Fore']
+        pl3=pl3.to_frame()
+        pl3.columns=[columnz+' Fore']
+        pl3.plot(color='orange',ax=ax3,title='VARMAX forecast')
+
+        ax4 = info4.ix[df[p]:df[q]].plot()#
+        pl4=foresult[columnn+' Fore']
+        pl4=pl4.to_frame()
+        pl4.columns=[columnn+' Fore']
+        pl4.plot(color='orange',ax=ax4,title='VARMAX forecast')
+             
+        #-----write to csv------
+        comb=pd.concat([bic,foresult,info_var[df[p]:df[q]]],axis=1)
+        comb.to_csv('VARMAX_Foresult_'+ic+'.csv')
+    
+    elif m==2:#VAR
+        bic=DataFrame(bic,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+        bic.columns=[ic]
+        if columnm==0:
+            ax1 = info1.ix[df[p]:df[q]].plot()
+            foresult1=DataFrame(var1,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+            foresult1.columns =[columnx +' Fore']
+            foresult1.plot(color='orange',ax=ax1,title='VAR forecast')
+            
+            ax2 = info2.ix[df[p]:df[q]].plot()
+            foresult2=DataFrame(var2,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+            foresult2.columns =[columny+' Fore']
+            foresult2.plot(color='orange',ax=ax2,title='VAR forecast')
+            
+            ax3 = info3.ix[df[p]:df[q]].plot()    
+            foresult3=DataFrame(var3,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+            foresult3.columns =[columnz+' Fore']
+            foresult3.plot(color='orange',ax=ax3,title='VAR forecast')
+         
+            ax4 = info4.ix[df[p]:df[q]].plot()
+            foresult4=DataFrame(var4,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+            foresult4.columns =[columnn+' Fore']
+            foresult4.plot(color='orange',ax=ax4,title='VAR forecast')
+            
+            comb =pd.concat([foresult1,foresult2,foresult3,foresult4],axis=1)
+            #-----write to csv------
+            comb1=pd.concat([bic,comb,info_var[df[p]:df[q]]],axis=1)
+            comb1.to_csv('VAR_Foresult_'+ic+'.csv')
+            
+        else:
+            ax1 = info1.ix[df[p]:df[q]].plot()
+            foresult1=DataFrame(var1,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+            foresult1.columns =[columnx +' Fore']
+            foresult1.plot(color='orange',ax=ax1,title='FAVAR forecast')
+            
+            ax2 = info2.ix[df[p]:df[q]].plot()
+            foresult2=DataFrame(var2,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+            foresult2.columns =[columny+' Fore']
+            foresult2.plot(color='orange',ax=ax2,title='FAVAR forecast')
+            
+            ax3 = info3.ix[df[p]:df[q]].plot()    
+            foresult3=DataFrame(var3,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+            foresult3.columns =[columnz+' Fore']
+            foresult3.plot(color='orange',ax=ax3,title='FAVAR forecast')
+         
+            ax4 = info4.ix[df[p]:df[q]].plot()
+            foresult4=DataFrame(var4,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+            foresult4.columns =[columnn+' Fore']
+            foresult4.plot(color='orange',ax=ax4,title='FAVAR forecast')
+            
+            comb =pd.concat([foresult1,foresult2,foresult3,foresult4],axis=1)
+            #-----write to csv------
+            comb1=pd.concat([bic,comb,info_var[df[p]:df[q]]],axis=1)
+            comb1.to_csv('FAVAR_Foresult_'+ic+'.csv')  
+
+        
+    elif m==3:#HWES
+            bic1=DataFrame(bic1,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+            bic1.columns=[ic+'_x']
+            
+            bic2=DataFrame(bic2,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+            bic2.columns=[ic+'_y']
+            
+            bic3=DataFrame(bic3,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+            bic3.columns=[ic+'_z']
+        
+            bic4=DataFrame(bic4,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+            bic4.columns=[ic+'_n']  
+            
+            ax1 = info1.ix[df[p]:df[q]].plot()
+            foresult1=DataFrame(var1,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+            foresult1.columns =[columnx +' Fore']
+            foresult1.plot(color='orange',ax=ax1,title='HWES forecast')
+            
+            ax2 = info2.ix[df[p]:df[q]].plot()
+            foresult2=DataFrame(var2,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+            foresult2.columns =[columny+' Fore']
+            foresult2.plot(color='orange',ax=ax2,title='HWES forecast')
+            
+            ax3 = info3.ix[df[p]:df[q]].plot()    
+            foresult3=DataFrame(var3,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+            foresult3.columns =[columnz+' Fore']
+            foresult3.plot(color='orange',ax=ax3,title='HWES forecast')
+         
+            ax4 = info4.ix[df[p]:df[q]].plot()
+            foresult4=DataFrame(var4,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+            foresult4.columns =[columnn+' Fore']
+            foresult4.plot(color='orange',ax=ax4,title='HWES forecast')
+            
+           
+            comb =pd.concat([bic1,bic2,bic3,bic4,foresult1,foresult2,foresult3,info_var[df[p]:df[q]],foresult4],axis=1)        
+            comb.to_csv('HWES_Foresult_'+ic+'.csv')
+    
+        #fore2=foresult
+        #-----write to csv------
+        #comb =pd.concat([fore15,fore16,fore17,fore25,fore26,fore27,fore35,fore36,fore37,fore45,fore46,fore47,info_var[df[p]:df[q]]],axis=1)
+        #comb.to_csv('HWES_Foresult_QD.csv')
+    else:#ARMA
+        bic1=DataFrame(bic1,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+        bic1.columns=[ic+'_x']
+        
+        bic2=DataFrame(bic2,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+        bic2.columns=[ic+'_y']
+        
+        bic3=DataFrame(bic3,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+        bic3.columns=[ic+'_z']
+        
+        bic4=DataFrame(bic4,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+        bic4.columns=[ic+'_n']  
+        
+        ax1 = info1.ix[df[p]:df[q]].plot()
+        foresult1=DataFrame(var1,index=pd.date_range(forest, periods=q-p+1, freq=fre))# 
+        foresult1.columns =[columnx +' Fore']
+        foresult1.plot(color='orange',ax=ax1,title='ARMA forecast')
+            
+        ax2 = info2.ix[df[p]:df[q]].plot()
+        foresult2=DataFrame(var2,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+        foresult2.columns =[columny+' Fore']
+        foresult2.plot(color='orange',ax=ax2,title='ARMA forecast')
+        
+        ax3 = info3.ix[df[p]:df[q]].plot()    
+        foresult3=DataFrame(var3,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+        foresult3.columns =[columnz+' Fore']
+        foresult3.plot(color='orange',ax=ax3,title='ARMA forecast')
+        
+        ax4 = info4.ix[df[p]:df[q]].plot()
+        foresult4=DataFrame(var4,index=pd.date_range(forest,periods=q-p+1, freq=fre))#
+        foresult4.columns =[columnn+' Fore']
+        foresult4.plot(color='orange',ax=ax4,title='ARMA forecast')
+         
+        comb =pd.concat([bic1,bic2,bic3,bic4,foresult1,foresult2,foresult3,foresult4],axis=1)        
+        comb.to_csv('ARMA_Foresult_'+ic+'.csv')
+   
+        #-----write to csv------
+        #comb =pd.concat([info_var[df[p]:df[q-1]],fore1,fore2,fore3,fore4],axis=1)
+        #comb.to_csv('ARMA_Foresult_QD.csv')
+    
+#'''
+
+#===============================================================
+#===============================================================
+#===============================================================
+#===============================================================        
+#===============================================================        
+#===============================================================
+#===============================================================
+#===============================================================
+    
+    
+    
+    
+#===============================================================
+#1.read data
+#---------------------------------------------------------------   
+filename='FAVAR_data.csv' #'2019-06.csv' 
+fre='QS-DEC'
+forest='6/1/2001'
+#----------------
+
+info_all = pd.read_csv(filename, parse_dates=True, index_col=0)
+d=pd.read_csv(filename) # get time sequence
+df=d['sasdate']#data index 
+df= pd.to_datetime(df)
+
+#----------------
+columnx='PCECC96'#Real Personal Consumption Expenditures (Billions of Chained 2012 Dollars)
+#'USSTHPI' House price,All-Transactions House Price Index for the United States (Index 1980 Q1=100),
+#starts from 1975-3-1,df[64]
+columny='GDPC1'#GDP,Real Gross Domestic Product, 3 Decimal (Billions of Chained 2012 Dollars)
+columnz='CPIAUCSL'#CPI,Consumer Price Index for All Urban Consumers: All Items (Index 1982-84=100)
+columnn='PPIACO' #PPI,Producer Price Index for All Commodities (Index 1982=100)
+#----------------
+#info_hos=info_all[columnx]
+#hos_train = info_hos['1959-01-01':'2001-01-01']
+#----------------
+
+#===============================================================
+#2.check for stationarity
+#---------------------------------------------------------------
+'''
+cl='5%'
+st_data=unitroot(info_all,columnn,cl) #change column name to test for different indicator
+
+originplot(st_data,169-2,241-2)
+#originplot(columnx,p,q),p=169-diff times,q=241-diff times 
+
+#d=st_data
+'''
+#save the data to Diff_result.csv
+#comb=pd.concat([a,b,c,d],axis=1)
+#comb.to_csv('Diff_result.csv')
+#===============================================================
+#loop for VARMAX,VAR,HWES,ARIMA
+#---------------------------------------------------------------
+#for MD 
+#1959-01-01 is df[0]
+# 2001-01-01 is df[504]
+# 2001-02-01 is df[505]
+# 2019-05-01 is df[724]
+#max df: 725, 2019-06-01
+
+#for QD
+#240 entries, 1959-09-01 to 2019-06-01
+#1959-09-01 00:00:00 df[0]
+#2001-03-01 00:00:00 df[166]
+#2001-06-01 00:00:00 df[167]
+#2019-06-01 00:00:00 df[239]
+#===============================================================
+#3.Model Running
+#---------------------------------------------------------------
+
+# read data
+info_all = pd.read_csv('Diff_result.csv', parse_dates=True, index_col=0)
+d=pd.read_csv('Diff_result.csv') # get time sequence
+df=d['sasdate']#data index 
+df= pd.to_datetime(df)
+df[239-166]
+#model parameter specification
+j=0
+i=166
+q=239 #the end point of forecasting
+#p=i+1 start point of forecasting
+
+#forecast range: [p,q],length:q-p+1
+
+m=2# 1: VARMA 2: VAR (FAVAR)3:HWES ELSE: ARIMA
+level=0.5
+columnm='FACTOR'#'FACTOR' #0
+ic='aic'
+runmodel(3,i,j,q,columnm,'aic')
+
+#===============================================================
+#===============================================================
+
+
+
+
+
+

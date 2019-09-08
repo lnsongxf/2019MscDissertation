@@ -12,7 +12,7 @@ from pandas import DataFrame
 from math import sqrt
 import numpy as np
 import matplotlib.pyplot as plt
-import math
+
 from sklearn.metrics import mean_squared_error
 #=============
 
@@ -31,6 +31,11 @@ def modeleva(model,actual,predict):
     elif model == 'MAPE':
         x1 = np.asanyarray(actual)
         x2 = np.asanyarray(predict)
+        for i in range(0, len(x1)-1):
+            if (x1[i] == 0): 
+                x1=np.delete(x1,i)
+                x2=np.delete(x2,i)
+                
         res = np.mean(np.abs((x1 - x2) / x1))
         res=100*res/len(actual)
     else:
@@ -51,90 +56,52 @@ columnn='PPIACO' #PPI,Producer Price Index for All Commodities (Index 1982=100)
 a =[columnx+' Fore',columny+' Fore',columnz+' Fore',columnn+' Fore']# for forecast data
 b =[columnx,columny,columnz,columnn]#for original data
 c =['MAPE','rmse']
-d =[0.5,0.6,0.7]# for HWES
 
+#------
+#controller
+#HWES_Foresult_bic.csv
+#BMA_ModelAveraging
+#SMA_ModelAveraging
+#AMA_ModelAveraging.csv
+#BMA_ModelAveraging_T.csv
+#WAIC_ModelAveraging.csv
+#-----
 
-file_fore='HWES_Foresult_QD.csv'
-m=1
-
-info_fore= pd.read_csv(file_fore, parse_dates=True, index_col=0)
-
+info_fore= pd.read_csv('ARMA_Foresult_aic.csv', parse_dates=True, index_col=0,encoding='utf-8')
 
 j=0
 tmp=[]
 tmp1=[]
+
 tmp2=[]
 while j<2:#for model
     
-
-    if m==0:
-        i=0
-        while i <4:
-
-            print('This is for %s:'%b[i])
-            actual=info_fore[b[i]]
-            predict=info_fore[a[i]]
-            res=modeleva(c[j],actual,predict)
-            print('The result of %s is: %s'%(c[j],res))
-            if j==0:
-                tmp.append(res)
-            else:
-                tmp1.append(res)
-            i=i+1 
-    else:
-        k=0
-        while k<3:
-            i=0
-            while i<4:
-                print()
-                print('This is for %s:(a=%s)'%(b[i],d[k]))
-                colname= a[i]+' a='+repr(d[k])
-                predict=info_fore[colname]
-                actual=info_fore[b[i]]
-                res=modeleva(c[j],actual,predict)
-                print('The result of %s is: %s'%(c[j],res))
-                print()
-                i=i+1 
-                if j==0:
-                    tmp.append(res)
-                else:
-                    tmp1.append(res)  
-
-            k=k+1 
-            
-    j=j+1
-
-
-'''
-if m==0:
-
-    dn=DataFrame(tmp)
-    dn.columns=[c[0]]
-    dn1=DataFrame(tmp1)
-    dn1.columns=[c[1]]
-    combb=pd.concat([dn,dn1],axis=1)
-    combb.to_csv('ModelEva_HWES.csv')
-
-tm=[]
-if m==1:
     i=0
-    while i <2:
-        if i==0:
-
-            dn=DataFrame(tmp[0,3],index=b)
-            dn1=DataFrame(tmp[4,7],index=b)
-            dn2=DataFrame(tmp[8,11],index=b)
-            dn.columns=[c[0]]
-            dn1.columns=[c[0]]
-            dn2.columns=[c[0]]
-            combMAPE=pd.concat([dn,dn1,dn2],axis=1)
+    while i <4:
+        print('This is for %s:'%b[i])
+        actual=info_fore[b[i]] 
+        colname=a[i]
+        predict=info_fore[colname]
+        actual=actual['2007-12-01':'2009-06-01']
+        predict=predict['2007-12-01':'2009-06-01']
+        res=modeleva(c[j],actual,predict)
+        print('The result of %s is: %s'%(c[j],res))
+        if j==0:
+            tmp.append(res)
         else:
-            dnn=DataFrame(tmp1[0,3],index=b)
-            dnn1=DataFrame(tmp1[4,7],index=b)
-            dnn2=DataFrame(tmp1[8,11],index=b)
-            dnn.columns=[c[1]]
-            dnn1.columns=[c[1]]
-            dnn2.columns=[c[1]]
-            combrmse=pd.concat([dnn,dnn1,dnn2],axis=1)  
-        i=i+1
+            tmp1.append(res)
+        i=i+1 
+
+    j=j+1
+    
+
+a=DataFrame(tmp,index=[columnx,columny,columnz,columnn])
+b=DataFrame(tmp1,index=[columnx,columny,columnz,columnn])
+favar_bic=pd.concat([a,b],axis=1)
+favar_bic.columns=[c[0],c[1]]
+
 '''
+comb=pd.concat([favar_aic,favar_bic],axis=1)
+comb.to_csv('HWES_eva.csv')
+'''
+

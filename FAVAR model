@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Aug  8 18:42:00 2019
+
+@author: valler
+"""
+from __future__ import division
+import pandas as pd
+from pandas import DataFrame
+import numpy as np
+import matplotlib.pyplot as plt
+from statsmodels.tsa.stattools import adfuller as ADF
+from statsmodels.tsa.stattools import kpss as KPSS
+import math
+from numpy import linalg as LA
+#===============================================================
+#exam the stationarity 
+#===============================================================
+def unitroot(info_all,column,cl):
+    res_a=ADF(info_all[column])
+    res_acv=res_a[4]
+    cv=res_acv[cl]
+    exam=info_all[column]
+    i=0 #counter  
+    
+    while(res_a[0]>cv):
+        Ddatax=exam.diff().dropna()
+        res_a=ADF(Ddatax)
+        res_acv=res_a[4]
+        cv=res_acv[cl]
+        exam=Ddatax
+        i=i+1
+        continue;
+    
+    res_k=KPSS(info_all[column])
+    res_kcv=res_k[3]
+    cv=res_kcv[cl]
+    exam=info_all[column]
+    
+    j=0 #counter  
+    
+    while(res_k[0]>cv):
+        Ddatax=exam.diff().dropna()
+        res_k=KPSS(Ddatax)
+        res_kcv=res_k[3]
+        cv=res_kcv[cl]
+        exam=Ddatax
+        j=j+1
+        continue;
+         
+    if i==j:
+        print('unit test','taking %s times of difference'%j)
+    else:
+        print('unit test(KPSS)','taking %s times of difference(KPSS), where ADF is %s times'%(j,i))
+    
+    Ddatax=Ddatax.to_frame()
+    Ddatax.columns =[column]
+    return Ddatax;
+
+
+columnx='PCECC96'
+columny='GDPC1'
+columnz='CPIAUCSL'
+columnn='PPIACO'
+column1='CMRMTSPLx'
+column2='GDPCTPI'
+column3='FEDFUNDS'
+column4='INDPRO'
+
+
+#1. Acquire the FAVAR data
+'''
+info_all_ori = pd.read_csv('2019-07.csv', parse_dates=True, index_col=0)
+info_all = pd.read_csv('Diff_result.csv', parse_dates=True, index_col=0)
+
+
+a=unitroot(info_all_ori,'CMRMTSPLx','5%')#1
+b=unitroot(info_all_ori,'GDPCTPI','5%')#1
+c=unitroot(info_all_ori,'FEDFUNDS','5%')#1
+d=unitroot(info_all_ori,'INDPRO','5%')#1
+
+x=pd.concat([a,b,c,d,info_all[columnx],info_all[columny],info_all[columnz],info_all[columnn]],axis=1)
+
+x.to_csv('FAVAR_data.csv')
+'''
+#2. calculate factor
+info_all = pd.read_csv('FAVAR_data.csv', parse_dates=True, index_col=0)
+
+matrix=info_all.as_matrix()
+matr_trans=matrix.transpose()
+MM=np.dot(matr_trans,matrix)
+w, v = LA.eig(MM)
+
+#--get ev
+w.max() # find the largest evigenvalue, it's the [0] data
+ev=v[:,0]# the eigenvector that has the largest eigenvalue
+n=8**(0.5)
+ev=n*ev
+#--get factor
+factor=np.dot(matrix,ev)#X*ev
+factor=0.125*factor #X*ev/n
+
+fac=DataFrame(factor,index=pd.date_range('1959-09-01',periods=240, freq='QS-DEC'))
+fac.columns=['FACTOR']
+x=pd.concat([fac,info_all[columnx],info_all[columny],info_all[columnz],info_all[columnn]],axis=1)
+
+#x.to_csv('Diff_result.csv')
+

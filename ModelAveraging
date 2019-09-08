@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Aug 12 12:14:25 2019
+
+@author: valler
+"""
+
+import pandas as pd
+import numpy as np
+from pandas import DataFrame
+import math 
+ 
+def modeleva(model,actual,predict):
+    import  statsmodels.tools.eval_measures as ev
+    
+    if model =='mse':
+        res=ev.mse(actual,predict).mean()
+    elif model == 'rmse':
+        res =ev.rmse(actual,predict).mean()
+    elif model == 'MAPE':
+        x1 = np.asanyarray(actual)
+        x2 = np.asanyarray(predict)
+        for i in range(0, len(x1)-1):
+            if (x1[i] == 0): 
+                x1=np.delete(x1,i)
+                x2=np.delete(x2,i)
+                
+        res = np.mean(np.abs((x1 - x2) / x1))
+        res=100*res/len(actual)
+    else:
+        res = 'no such mean'
+    
+    return res;
+
+def eb_d(bic1,bic2,bic3,bic4):
+    x=-0.0001
+    u1=math.exp(x*bic1)
+    u2=math.exp(x*bic2)
+    u3=math.exp(x*bic3)
+    u4=math.exp(x*bic4)
+    
+    d=u1+u2+u3+u4
+    d
+    return u1,u2,u3,u4,d;
+
+#---------------
+    #controller
+ic='aic'
+m=1 #0:SMA 1:BMA
+#--------------
+
+info_all = pd.read_csv('Diff_result.csv', parse_dates=True, index_col=0)
+info_VAR = pd.read_csv('VAR_Foresult_'+ic+'.csv', parse_dates=True, index_col=0)
+info_FAVAR = pd.read_csv('FAVAR_Foresult_'+ic+'.csv', parse_dates=True, index_col=0)
+info_VARMAX = pd.read_csv('VARMAX_Foresult_'+ic+'.csv', parse_dates=True, index_col=0)
+info_HWES = pd.read_csv('HWES_Foresult_'+ic+'.csv', parse_dates=True, index_col=0)
+df=info_HWES.index
+
+#----------------
+columnx='PCECC96'
+columny='GDPC1'
+columnz='CPIAUCSL'
+columnn='PPIACO'
+#----------------
+
+
+a =[columnx+' Fore',columny+' Fore',columnz+' Fore',columnn+' Fore']# for forecast data
+b=['_x','_y','_z','_n']
+i=0
+tmp=[]
+tmpx=[]
+tmpy=[]
+tmpz=[]
+tmpn=[]
+
+
+while i<4:
+    VAR=info_VAR[a[i]]
+    VAR_ic=info_VAR[ic]
+
+    FAVAR=info_FAVAR[a[i]]
+    FAVAR_ic=info_FAVAR[ic]
+    
+    AVRMAX=info_VARMAX[a[i]]
+    AVRMAX_ic=info_VARMAX[ic]
+    
+    HWES=info_HWES[a[i]]
+    HWES_ic=info_HWES[ic+b[i]]
+    
+    n1,n2,n3,n4,d=eb_d(VAR_ic.mean(),FAVAR_ic.mean(),AVRMAX_ic.mean(),HWES_ic.mean())
+    
+    j=0
+
+    while j<73:
+        if m ==0: #SMA
+            print()
+            print(j)
+            print('This is VAR[df[j]]:%s'%VAR[df[j]])
+            print('This is FAVAR[df[j]]:%s'%FAVAR[df[j]])
+            print('This is AVRMAX[df[j]]:%s'%AVRMAX[df[j]])
+            print('This is HWES[df[j]]:%s'%HWES[df[j]])
+            print()
+            MA=(VAR[df[j]]+FAVAR[df[j]]+AVRMAX[df[j]]+HWES[df[j]])*0.25
+        
+        else:#BMA:
+            MA=(n1*VAR[df[j]]+n2*FAVAR[df[j]]+n3*AVRMAX[df[j]]+n4*HWES[df[j]])/d
+        
+        if i==0:
+            tmpx.append(MA)
+        elif i==1:
+            tmpy.append(MA)
+        elif i==2:
+            tmpz.append(MA)
+        else:
+            tmpn.append(MA)
+   
+        j=j+1
+        continue;
+
+
+    
+    
+    if i ==0:
+        X=DataFrame(tmpx,index=pd.date_range('2001-06-01',periods=73, freq='QS-DEC'))
+        X.columns=[columnx+' Fore']
+    elif i ==1:
+        Y=DataFrame(tmpy,index=pd.date_range('2001-06-01',periods=73, freq='QS-DEC'))
+        Y.columns=[columny+' Fore']
+    elif i ==2:
+        Z=DataFrame(tmpz,index=pd.date_range('2001-06-01',periods=73, freq='QS-DEC'))
+        Z.columns=[columnz+' Fore']
+    else:
+        N=DataFrame(tmpn,index=pd.date_range('2001-06-01',periods=73, freq='QS-DEC'))
+        N.columns=[columnn+' Fore']
+    i=i+1
+    continue;
+info_var = info_all[[columnx,columny,columnz,columnn]]
+
+comb=pd.concat([X,Y,Z,N,info_var['2001-06-01':'2019-06-01']],axis=1)
+comb.to_csv('AMA_ModelAveraging_T.csv')
