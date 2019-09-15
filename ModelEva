@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Aug  4 16:33:10 2019
+
+@author: valler
+"""
+
+from __future__ import division
+import pandas as pd
+from pandas import DataFrame
+from math import sqrt
+import numpy as np
+import matplotlib.pyplot as plt
+
+from sklearn.metrics import mean_squared_error
+#=============
+
+def rmse(actual,predict):#data1 is actual data
+    rms = sqrt(mean_squared_error(actual,predict))
+    return rms;  
+
+ 
+def modeleva(model,actual,predict):
+    import  statsmodels.tools.eval_measures as ev
+    
+    if model =='mse':
+        res=ev.mse(actual,predict).mean()
+    elif model == 'rmse':
+        res =ev.rmse(actual,predict).mean()
+    elif model == 'MAPE':
+        x1 = np.asanyarray(actual)
+        x2 = np.asanyarray(predict)
+        for i in range(0, len(x1)-1):
+            if (x1[i] == 0): 
+                x1=np.delete(x1,i)
+                x2=np.delete(x2,i)
+                
+        res = np.mean(np.abs((x1 - x2) / x1))
+        res=100*res/len(actual)
+    else:
+        res = 'no such mean'
+    
+    return res;
+
+#=============
+    
+#----------------
+columnx='PCECC96'#Real Personal Consumption Expenditures (Billions of Chained 2012 Dollars)
+#'USSTHPI' House price,All-Transactions House Price Index for the United States (Index 1980 Q1=100),
+#starts from 1975-3-1,df[64]
+columny='GDPC1'#GDP,Real Gross Domestic Product, 3 Decimal (Billions of Chained 2012 Dollars)
+columnz='CPIAUCSL'#CPI,Consumer Price Index for All Urban Consumers: All Items (Index 1982-84=100)
+columnn='PPIACO' #PPI,Producer Price Index for All Commodities (Index 1982=100)
+#----------------
+a =[columnx+' Fore',columny+' Fore',columnz+' Fore',columnn+' Fore']# for forecast data
+b =[columnx,columny,columnz,columnn]#for original data
+c =['MAPE','rmse']
+
+#------
+#controller
+#HWES_Foresult_bic.csv
+#BMA_ModelAveraging
+#SMA_ModelAveraging
+#AMA_ModelAveraging.csv
+#BMA_ModelAveraging_T.csv
+#WAIC_ModelAveraging.csv
+#-----
+
+info_fore= pd.read_csv('SMA_ModelAveraging.csv', parse_dates=True, index_col=0,encoding='utf-8')
+
+j=0
+tmp=[]
+tmp1=[]
+
+tmp2=[]
+while j<2:#for model
+    
+    i=0
+    while i <4:
+        print('This is for %s:'%b[i])
+        actual=info_fore[b[i]] 
+        colname=a[i]
+        predict=info_fore[colname]
+        #actual=actual['2007-12-01':'2009-06-01']
+        #predict=predict['2007-12-01':'2009-06-01']
+        res=modeleva(c[j],actual,predict)
+        print('The result of %s is: %s'%(c[j],res))
+        if j==0:
+            tmp.append(res)
+        else:
+            tmp1.append(res)
+        i=i+1 
+
+    j=j+1
+    
+
+a=DataFrame(tmp,index=[columnx,columny,columnz,columnn])
+b=DataFrame(tmp1,index=[columnx,columny,columnz,columnn])
+favar_bic=pd.concat([a,b],axis=1)
+favar_bic.columns=[c[0],c[1]]
+
+'''
+comb=pd.concat([favar_aic,favar_bic],axis=1)
+comb.to_csv('test.csv')
+'''
+
